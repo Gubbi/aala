@@ -1,0 +1,532 @@
+specification {
+  element actor {
+    style {
+      shape person
+    }
+  }
+  element externalActor {
+    style {
+      shape person
+      color secondary
+    }
+  }
+  element container
+  element database {
+    style {
+      shape storage
+    }
+  }
+  element component
+}
+
+model {
+  admin = externalActor 'Tenant Admin'
+  builder = externalActor 'Builder'
+
+  llm = container 'Cloud LLM'
+  claims = database 'Claim Store'
+  embed = database 'Embedding Index'
+  raw = database 'Raw Store' 'L0'
+  cache = database 'Projection Cache' 'KV store'
+  gh = container 'GitHub / GitLab'
+  telemetry_store = container 'Telemetry Store' 'Builder plane'
+  ingest = container 'Ingestion Service'
+  gw = container 'API Gateway'
+
+  extract = container 'Extraction Service' {
+    prefilter = component 'Pre-extraction Filter' 'Drops obviously irrelevant content before expensive LLM call' {
+      technology 'Small classifier'
+    }
+    prompter = component 'Prompt Builder' 'Constructs structured-output extraction prompt with batch context' {
+      technology 'Logic'
+    }
+    caller = component 'LLM Caller' 'Schema-validated call; retries on parse failure' {
+      technology 'Adapter'
+    }
+    validator = component 'Schema Validator' 'Rejects malformed outputs; logs for diagnostics' {
+      technology 'Logic'
+    }
+    provenance = component 'Provenance Stamper' 'Attaches source URI, quote span, timestamp' {
+      technology 'Logic'
+    }
+    premise = component 'Premise Tagger' 'Assigns premise tags (platform, env, time scope, etc.)' {
+      technology 'LLM-assisted'
+    }
+    normalizer = component 'Unit Normalizer' 'Canonicalizes values: 30s/30sec/30000ms → standard form' {
+      technology 'Logic'
+    }
+    confidence = component 'Confidence Scorer' 'Combines source quality, extraction signals into a score' {
+      technology 'Logic'
+    }
+    embedder = component 'Embedding Writer' 'Computes and persists atom embedding for conflict NN' {
+      technology 'Adapter'
+    }
+    emitter = component 'Atom Emitter' 'Publishes proposed atoms to Conflict Engine' {
+      technology 'Logic'
+    }
+  }
+
+  conflict = container 'Conflict Engine' {
+    router = component 'Atom Router' 'Dispatches new atoms through the pipeline' {
+      technology 'Logic'
+    }
+    det = component 'Deterministic Matcher' 'Field-level equality, supersession by ID, duplicate detection' {
+      technology 'Rule engine'
+    }
+    candidates = component 'Candidate Finder' 'NN over embeddings + premise-tag lookup for related atoms' {
+      technology 'Logic'
+    }
+    judge = component 'LLM Judge' 'Classifies pair-wise relationships on the shortlist' {
+      technology 'LLM call'
+    }
+    classifier = component 'Classifier' 'Final assignment: New/Duplicate/Reinforces/Refines/Supersedes/Contradicts/Compatible/Unclear' {
+      technology 'Logic'
+    }
+    decisiondetect = component 'Decision Detector' 'Flags decision-type atoms for blast radius trigger' {
+      technology 'Logic'
+    }
+    rationale = component 'Rationale Recorder' 'Captures judge output as rationale for the resolution' {
+      technology 'Logic'
+    }
+    emitter = component 'Result Emitter' 'Hands off to PR Bot with full classification + rationale' {
+      technology 'Logic'
+    }
+  }
+
+  blast = container 'Blast Radius Service' {
+    trigger = component 'Trigger Handler' 'Receives decision-atom events from Conflict Engine' {
+      technology 'Logic'
+    }
+    direct = component 'Direct-Ref Traverser' 'Walks explicit depends_on and references edges' {
+      technology 'Graph traversal'
+    }
+    premise_lookup = component 'Premise-Tag Resolver' 'Queries premise-index for tagged atoms' {
+      technology 'Index lookup'
+    }
+    subtree = component 'Subtree Identifier' 'Determines candidate subtree from the decision scope' {
+      technology 'Logic'
+    }
+    implicit = component 'LLM-Implicit Pass' 'For each candidate, asks: does this still hold under the new premise?' {
+      technology 'LLM call'
+    }
+    transitive = component 'Transitive Propagator' 'Re-runs until fixed point (impact of impact of impact...)' {
+      technology 'Logic'
+    }
+    categorizer = component 'Categorizer' 'Groups affected atoms: direct / premise / implicit / external-commitment' {
+      technology 'Logic'
+    }
+    reporter = component 'Report Builder' 'Produces BLAST_RADIUS.md content' {
+      technology 'Logic'
+    }
+    refiner = component 'Iterative Refiner' 'Re-evaluates as team marks atoms during PR' {
+      technology 'Logic'
+    }
+  }
+
+  project = container 'Projection Service' {
+    trigger_p = component 'Trigger Handler' 'Receives section-change notifications from PR Bot' {
+      technology 'Logic'
+    }
+    scoper = component 'Section Scoper' 'Uses claim-to-section index to identify affected sections' {
+      technology 'Logic'
+    }
+    template = component 'Template Renderer' 'Deterministically renders structural content (tables, lists, fact statements)' {
+      technology 'Pure function'
+    }
+    narrator = component 'Narrative Renderer' 'Renders connective prose for narrative zones' {
+      technology 'LLM call'
+    }
+    anchor = component 'Previous-Prose Anchor' 'Provides previous rendering to narrator to minimize gratuitous rephrasing' {
+      technology 'Logic'
+    }
+    cache_mgr = component 'Cache Manager' 'Hashes atoms + prompt + model; serves cached rendering when hit' {
+      technology 'Logic'
+    }
+    assembler = component 'Section Assembler' 'Stitches template + narrative output into final markdown section' {
+      technology 'Logic'
+    }
+    writer = component 'Markdown Writer' 'Writes section into projection files on the branch' {
+      technology 'I/O'
+    }
+    annotator = component 'Change Annotator' 'Records which atoms triggered which section re-renders' {
+      technology 'Logic'
+    }
+  }
+
+  bot = container 'PR Orchestrator Bot' {
+    receiver = component 'Event Receiver' 'Inbound events from Conflict Engine, Blast Radius, GitHub webhooks' {
+      technology 'Logic'
+    }
+    branch_mgr = component 'Branch Manager' 'Creates and maintains feature branches per ingest batch or decision' {
+      technology 'Git ops'
+    }
+    yaml_writer = component 'Atom Writer' 'Writes atom YAML changes to branch with stable sort' {
+      technology 'Git ops'
+    }
+    proj_trigger = component 'Projection Trigger' 'Notifies Projection Service of changed atoms' {
+      technology 'Logic'
+    }
+    changes_md = component 'CHANGES Builder' 'Generates CHANGES.md from classification list' {
+      technology 'Logic'
+    }
+    blast_md = component 'Blast Builder' 'Generates BLAST_RADIUS.md from Blast Radius output' {
+      technology 'Logic'
+    }
+    conflict_md = component 'Conflicts Builder' 'Generates CONFLICTS.md with side-by-side conflicting atoms' {
+      technology 'Logic'
+    }
+    pr_creator = component 'PR Creator' 'Opens PR with description and labels' {
+      technology 'GH API'
+    }
+    commenter = component 'Line Commenter' 'Posts in-context conflict comments at file:line locations' {
+      technology 'GH API'
+    }
+    gate = component 'Completeness Gate' 'Blocks merge until all affected atoms have explicit resolution' {
+      technology 'Logic'
+    }
+    edit_watcher = component 'Edit Watcher' 'Detects manual commits during review; re-triggers downstream services' {
+      technology 'GH webhook'
+    }
+    merge_handler = component 'Merge Handler' 'On merge: finalizes atom statuses, updates indexes' {
+      technology 'Logic'
+    }
+  }
+
+  tree = container 'Tree Index' {
+    builder_dom = component 'By-Domain Builder' 'Builds tree from entity domain hierarchy' {
+      technology 'Logic'
+    }
+    builder_team = component 'By-Team Builder' 'Builds tree from team ownership metadata' {
+      technology 'Logic'
+    }
+    builder_life = component 'By-Lifecycle Builder' 'Builds tree from lifecycle status (production/deprecated/planned)' {
+      technology 'Logic'
+    }
+    builder_tag = component 'Tag-Tree Builder' 'Builds cross-cutting concern trees (security, observability, performance)' {
+      technology 'Logic'
+    }
+    builder_glossary = component 'By-Glossary Builder' 'Builds A→Z tree from definition-type atoms (org-wide + per-domain glossary files)' {
+      technology 'Logic'
+    }
+    label_writer = component 'Label Synthesizer' 'Generates semantic node labels for LLM navigation reasoning' {
+      technology 'LLM-assisted'
+    }
+    integrity = component 'Integrity Checker' 'Detects orphans, dead refs, unresolvable cross-refs' {
+      technology 'Logic'
+    }
+    api = component 'Navigation API' 'Returns node children + labels for LLM descent' {
+      technology 'Service'
+    }
+    rebuild = component 'Rebuild Coordinator' 'Triggers selective tree rebuild after PR merge' {
+      technology 'Logic'
+    }
+  }
+
+  query = container 'Query Service' {
+    intent = component 'Intent Parser' 'Classifies query: how-does-X-work, what-is-Y, compare-X-Y, etc.' {
+      technology 'LLM call'
+    }
+    axis_select = component 'Axis Selector' 'Picks navigation axis (by-domain/by-team/by-tag) based on intent' {
+      technology 'Logic + LLM'
+    }
+    navigator = component 'Tree Navigator' 'Iterative descent: LLM chooses next branch based on node labels' {
+      technology 'Logic + LLM'
+    }
+    path_tracker = component 'Path Tracker' 'Records full navigation path for provenance' {
+      technology 'Logic'
+    }
+    atom_collector = component 'Atom Collector' 'Gathers leaf atoms from selected branches' {
+      technology 'Logic'
+    }
+    context_builder = component 'Context Builder' 'Assembles atoms + path + audience hints into a payload for generation' {
+      technology 'Logic'
+    }
+    stop_condition = component 'Stop Condition' 'Terminates descent when LLM signals enough or depth limit hit' {
+      technology 'Logic'
+    }
+  }
+
+  gen = container 'Generation Service' {
+    doctype = component 'Doc Type Selector' 'Picks output form: Q&A, C4 L1/L2/L3, ADR, walkthrough, comparison' {
+      technology 'Logic'
+    }
+    audience = component 'Audience Adapter' 'Adjusts technical depth and framing for PM/Designer/EM/Engineer' {
+      technology 'Logic'
+    }
+    narrative_consult = component 'Narrative Consultant' 'Optionally reads aligned prose projections for phrasing anchors' {
+      technology 'Logic'
+    }
+    synth = component 'Synthesizer' 'Generates answer from atoms with explicit provenance citations' {
+      technology 'LLM call'
+    }
+    conflict_surface = component 'Conflict Surfacer' 'Detects unresolved conflicts in retrieved atoms; surfaces them in the answer' {
+      technology 'Logic'
+    }
+    confidence_temper = component 'Confidence Temperer' 'Adjusts language certainty based on atom confidence scores' {
+      technology 'Logic'
+    }
+    provenance_attach = component 'Provenance Attacher' 'Attaches atom IDs + nav path as citations' {
+      technology 'Logic'
+    }
+    faithfulness = component 'Faithfulness Checker' 'Post-generation: verifies answer atoms ⊆ retrieved atoms' {
+      technology 'LLM-judge or rule'
+    }
+    diagram_gen = component 'Diagram Generator' 'For C4 / flow output: generates LikeC4 or similar from structural atoms' {
+      technology 'Logic + LLM'
+    }
+  }
+
+  eval = container 'Eval Framework' {
+    bench_corpus = component 'Benchmark Corpus' 'Synthetic but realistic: services, ADRs, planted contradictions' {
+      technology 'Builder asset'
+    }
+    golden_admin = component 'Admin Golden-Set Runner' 'Admin authors questions + expected retrieved-sections; runs them' {
+      technology 'Service'
+    }
+    golden_bench = component 'Benchmark Runner' 'Runs benchmark suite on every Builder release' {
+      technology 'CI service'
+    }
+    retrieval_eval = component 'Retrieval Evaluator' 'Precision/recall over expected vs actual retrieved atoms' {
+      technology 'Logic'
+    }
+    faithfulness_eval = component 'Faithfulness Evaluator' 'Atoms-in-answer ⊆ retrieved atoms check' {
+      technology 'Logic'
+    }
+    llm_judge = component 'LLM-as-Judge Harness' 'Rubric-based scoring; configurable per dimension' {
+      technology 'Service'
+    }
+    conflict_planted = component 'Planted-Contradiction Runner' 'Injects known contradictions; verifies detection' {
+      technology 'Service'
+    }
+    shadow = component 'Shadow Eval' 'Runs new version alongside prod; logs diffs for sample review' {
+      technology 'Service'
+    }
+    telemetry = component 'Telemetry Aggregator' 'Aggregate-only signals across tenants (no raw content)' {
+      technology 'Service'
+    }
+    failed_archive = component 'Failed-Query Archive' 'Captures thumbs-down queries with nav paths for review' {
+      technology 'Per-tenant'
+    }
+  }
+
+  // Extraction Service flow
+  ingest -> extract.prefilter 'Batched fragments'
+  extract.prefilter -> extract.prompter 'Filtered fragments'
+  extract.prompter -> extract.caller 'Prompts'
+  extract.caller -> llm 'JSON-schema constrained call'
+  extract.caller -> extract.validator 'Raw outputs'
+  extract.validator -> extract.provenance 'Valid atoms'
+  extract.provenance -> raw 'Verify source URIs'
+  extract.provenance -> extract.premise
+  extract.premise -> extract.normalizer
+  extract.normalizer -> extract.confidence
+  extract.confidence -> extract.embedder
+  extract.embedder -> embed 'Write'
+  extract.confidence -> extract.emitter
+
+  // Conflict Engine flow
+  extract.emitter -> conflict.router 'Proposed atom'
+  conflict.router -> conflict.det
+  conflict.det -> conflict.candidates 'Unresolved → narrow search'
+  conflict.candidates -> embed 'NN query'
+  conflict.candidates -> claims 'Fetch candidate atoms'
+  conflict.candidates -> conflict.judge 'Shortlist (max ~10)'
+  conflict.judge -> llm 'Pairwise prompts'
+  conflict.judge -> conflict.classifier 'Per-candidate verdicts'
+  conflict.classifier -> conflict.rationale
+  conflict.classifier -> conflict.decisiondetect
+  conflict.rationale -> conflict.emitter
+  conflict.classifier -> conflict.emitter
+
+  // Blast Radius flow
+  conflict.decisiondetect -> blast.trigger 'Decision atom detected'
+  blast.trigger -> blast.direct
+  blast.direct -> claims 'Traverse edges'
+  blast.trigger -> blast.premise_lookup
+  blast.premise_lookup -> claims 'premise-index.json'
+  blast.trigger -> blast.subtree
+  blast.subtree -> blast.implicit
+  blast.implicit -> llm 'Reasoning prompts (batched)'
+  blast.implicit -> blast.transitive 'Per-iteration results'
+  blast.transitive -> blast.direct 'Newly-affected atoms'
+  blast.transitive -> blast.premise_lookup 'Newly-affected atoms'
+  blast.transitive -> blast.categorizer 'Fixed point reached'
+  blast.categorizer -> blast.reporter
+  blast.refiner -> blast.implicit 'Updated signal'
+
+  // Projection Service flow
+  bot.proj_trigger -> project.trigger_p 'Atom changes on branch'
+  project.trigger_p -> project.scoper
+  project.scoper -> claims 'Read claim-to-section index'
+  project.scoper -> project.cache_mgr 'Per-section lookup'
+  project.cache_mgr -> cache 'Hash → cached prose?'
+  project.cache_mgr -> project.template 'Cache miss → render'
+  project.template -> project.narrator
+  project.narrator -> project.anchor
+  project.anchor -> claims 'Read previous projection'
+  project.narrator -> llm 'Anchored prompts'
+  project.narrator -> project.assembler
+  project.template -> project.assembler
+  project.assembler -> project.writer
+  project.writer -> claims 'Write projection .md'
+  project.assembler -> project.annotator
+
+  // PR Orchestrator Bot flow
+  conflict.emitter -> bot.receiver 'Classified atoms + rationale'
+  blast.reporter -> bot.receiver 'BLAST_RADIUS.md + atom status updates'
+  gh -> bot.receiver 'Review events / manual commits'
+  bot.receiver -> bot.branch_mgr
+  bot.branch_mgr -> claims 'Create branch'
+  bot.receiver -> bot.yaml_writer
+  bot.yaml_writer -> claims 'Commit YAML changes'
+  bot.yaml_writer -> bot.proj_trigger
+  bot.receiver -> bot.changes_md
+  bot.receiver -> bot.blast_md
+  bot.receiver -> bot.conflict_md
+  bot.changes_md -> claims 'Write CHANGES.md'
+  bot.blast_md -> claims 'Write BLAST_RADIUS.md'
+  bot.conflict_md -> claims 'Write CONFLICTS.md'
+  bot.receiver -> bot.pr_creator
+  bot.pr_creator -> gh 'Open PR'
+  bot.receiver -> bot.commenter
+  bot.commenter -> gh 'Post line comments'
+  gh -> bot.gate 'PR review state queries'
+  bot.gate -> gh 'Block merge if incomplete'
+  gh -> bot.edit_watcher 'Manual commit events'
+  bot.edit_watcher -> bot.proj_trigger 'Re-render'
+  gh -> bot.merge_handler 'Merge event'
+  bot.merge_handler -> claims 'Finalize atom statuses, rebuild indexes'
+  bot.edit_watcher -> blast.refiner 'Team annotations during PR'
+  project.annotator -> bot.receiver 'Annotation payload'
+
+  // Tree Index flow
+  bot.merge_handler -> tree.rebuild 'Merge event'
+  tree.rebuild -> tree.builder_dom
+  tree.rebuild -> tree.builder_team
+  tree.rebuild -> tree.builder_life
+  tree.rebuild -> tree.builder_tag
+  tree.rebuild -> tree.builder_glossary
+  tree.builder_dom -> claims 'Read atoms + metadata'
+  tree.builder_team -> claims 'Read atoms + metadata'
+  tree.builder_life -> claims 'Read atoms + metadata'
+  tree.builder_tag -> claims 'Read atoms + tags'
+  tree.builder_glossary -> claims 'Read definition-type atoms'
+  tree.builder_dom -> tree.label_writer 'Tree + nodes needing labels'
+  tree.builder_team -> tree.label_writer 'Tree + nodes needing labels'
+  tree.builder_life -> tree.label_writer 'Tree + nodes needing labels'
+  tree.builder_tag -> tree.label_writer 'Tree + nodes needing labels'
+  tree.builder_glossary -> tree.label_writer 'Tree + nodes needing labels'
+  tree.label_writer -> claims 'Write labelled tree files'
+  tree.rebuild -> tree.integrity
+  tree.integrity -> claims 'Read full store'
+  tree.api -> claims 'Read tree files + leaf atoms'
+
+  // Query Service flow
+  gw -> query.intent 'User query + audience context'
+  query.intent -> llm 'Intent classification prompt'
+  query.intent -> query.axis_select
+  query.axis_select -> llm 'Axis-selection prompt'
+  query.axis_select -> query.navigator
+  query.navigator -> tree.api 'Get node children + labels'
+  query.navigator -> llm 'Descent decision prompt'
+  query.navigator -> query.path_tracker 'Each step'
+  query.navigator -> query.stop_condition
+  query.stop_condition -> query.atom_collector
+  query.atom_collector -> claims 'Read leaf atoms'
+  query.atom_collector -> query.context_builder
+  query.path_tracker -> query.context_builder
+
+  // Generation Service flow
+  query.context_builder -> gen.doctype 'Atoms + intent + audience'
+  gen.doctype -> gen.audience
+  gen.audience -> gen.narrative_consult
+  gen.narrative_consult -> claims 'Read aligned prose if useful'
+  gen.audience -> gen.synth
+  gen.synth -> llm 'Synthesis prompt'
+  gen.synth -> gen.conflict_surface
+  gen.conflict_surface -> gen.confidence_temper
+  gen.confidence_temper -> gen.provenance_attach
+  gen.provenance_attach -> gen.faithfulness
+  gen.faithfulness -> llm 'Judge call (or rule-based)'
+  gen.doctype -> gen.diagram_gen 'If structural output'
+  gen.diagram_gen -> llm 'Diagram synthesis'
+  gen.faithfulness -> gw 'Verified answer'
+  gen.diagram_gen -> gw 'Diagrams'
+
+  // Eval Framework flow
+  builder -> eval.golden_bench 'Run on release'
+  builder -> eval.bench_corpus 'Maintain'
+  eval.golden_bench -> eval.bench_corpus 'Test inputs'
+  eval.golden_bench -> query 'Run queries'
+  eval.golden_bench -> conflict 'Run conflict tests'
+  eval.golden_bench -> eval.retrieval_eval
+  eval.golden_bench -> eval.faithfulness_eval
+  eval.golden_bench -> eval.llm_judge
+
+  admin -> gw 'Author golden set'
+  gw -> eval.golden_admin 'Run for tenant'
+  eval.golden_admin -> query 'Test queries against tenant store'
+  eval.golden_admin -> eval.retrieval_eval
+  eval.golden_admin -> eval.faithfulness_eval
+  eval.golden_admin -> eval.llm_judge
+
+  builder -> eval.shadow 'Enable on rollout'
+  eval.shadow -> query 'Mirror traffic'
+  eval.shadow -> gen 'Mirror traffic'
+  eval.shadow -> eval.telemetry 'Diff metrics'
+
+  conflict -> eval.conflict_planted 'Test mode'
+  query -> eval.telemetry 'Call metrics'
+  gen -> eval.telemetry 'Call metrics'
+  eval.telemetry -> telemetry_store 'Aggregate signals only'
+
+  gw -> eval.failed_archive 'Thumbs-down events'
+  admin -> eval.failed_archive 'Review'
+}
+
+views {
+  view extractionView of extract {
+    title 'L3 — Extraction Service'
+    include *
+  }
+
+  view conflictEngineView of conflict {
+    title 'L3 — Conflict Engine'
+    include *
+  }
+
+  view blastRadiusView of blast {
+    title 'L3 — Blast Radius Service'
+    include *
+  }
+
+  view projectionView of project {
+    title 'L3 — Projection Service'
+    include *
+  }
+
+  view prBotView of bot {
+    title 'L3 — PR Orchestrator Bot'
+    include *
+  }
+
+  view treeIndexView of tree {
+    title 'L3 — Tree Index'
+    include *
+  }
+
+  view queryServiceView of query {
+    title 'L3 — Query Service'
+    include *
+  }
+
+  view generationServiceView of gen {
+    title 'L3 — Generation Service'
+    include *
+  }
+
+  view evalFrameworkView of eval {
+    title 'L3 — Eval Framework'
+    include *
+  }
+}

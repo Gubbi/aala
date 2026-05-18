@@ -1,0 +1,6 @@
+# Node / LikeC4 workspace
+node_modules/
+.DS_Store
+
+# Rust
+/target

@@ -1,0 +1,61 @@
+name: Regenerate LikeC4 diagrams
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'likec4/**/*.c4'
+      - 'likec4/package.json'
+      - 'likec4/package-lock.json'
+      - '.github/workflows/likec4-diagrams.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: likec4/package-lock.json
+
+      - name: Install dependencies
+        working-directory: likec4
+        run: npm ci --include=optional
+
+      # The package.json pins @rolldown/binding-darwin-arm64 for local macOS
+      # dev. On Linux CI we need the matching x64 binding; npm's optional-dep
+      # handling is unreliable across npm/node versions, so install explicitly.
+      - name: Install Linux rolldown binding
+        working-directory: likec4
+        run: npm install --no-save @rolldown/binding-linux-x64-gnu
+
+      - name: Install Playwright Chromium
+        working-directory: likec4
+        run: npx playwright install --with-deps chromium
+
+      - name: Validate .c4 sources
+        working-directory: likec4
+        run: npm run validate
+
+      - name: Regenerate PNGs
+        working-directory: likec4
+        run: npm run export
+
+      - name: Commit refreshed diagrams
+        run: |
+          if git diff --quiet -- docs/diagrams; then
+            echo "No diagram changes to commit."
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs/diagrams
+          git commit -m 'chore(diagrams): regenerate LikeC4 PNGs'
+          git push

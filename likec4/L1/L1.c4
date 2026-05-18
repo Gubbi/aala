@@ -1,0 +1,61 @@
+specification {
+  element actor {
+    style {
+      shape person
+    }
+  }
+  element externalActor {
+    style {
+      shape person
+      color secondary
+    }
+  }
+  element system
+  element externalSystem {
+    style {
+      color secondary
+    }
+  }
+}
+
+model {
+  pm = actor 'Product Manager' 'Asks about system behavior, trade-offs, constraints'
+  designer = actor 'Designer' 'Asks about current state, decision history, user-facing constraints'
+  em = actor 'Engineering Manager' 'Reviews changes, queries team-scoped state'
+  eng = actor 'Engineer' 'Generates design docs, queries flows, contributes via reviews'
+  director = actor 'Director / Exec' 'Skims state, drives sweeping decisions'
+  admin = actor 'Tenant Admin' 'Configures sources, taxonomies, evaluates fit for the org'
+  builder = externalActor 'SaaS Builder' 'Ships the platform; owns capability quality'
+
+  kc = system 'Knowledge Compiler' 'Ingests fragments, maintains a canonical claim store, generates docs on demand'
+
+  slack = externalSystem 'Slack' 'Team conversations and micro-decisions'
+  meet = externalSystem 'Meeting Platforms' 'Transcripts and action items (Zoom, Meet, etc.)'
+  github = externalSystem 'GitHub / GitLab' 'Source of PR / commit events; hosts the canonical claim store; PR UI is the review surface'
+  docs = externalSystem 'Doc Stores' 'Drive, Notion, Confluence — existing scattered docs (ingest source)'
+  llm = externalSystem 'Cloud LLM Providers' 'External hosted LLMs for extraction, reasoning, generation'
+
+  pm -> kc 'Queries, reviews changes'
+  designer -> kc 'Queries trade-offs and state'
+  em -> kc 'Reviews, queries team state'
+  eng -> kc 'Queries, generates docs, reviews changes'
+  director -> kc 'Queries summaries, drives decisions that trigger blast-radius PRs'
+  admin -> kc 'Configures and evaluates per tenant'
+  builder -> kc 'Ships and evolves capabilities'
+
+  slack -> kc 'Webhooks: messages, threads, decisions' 'HTTPS'
+  meet -> kc 'Transcripts after meetings' 'HTTPS'
+  github -> kc 'PR / commit events; existing planning content' 'HTTPS'
+  kc -> github 'Reads/writes claim store; opens PRs' 'Git + API'
+  docs -> kc 'Polls for new content' 'HTTPS'
+  kc -> llm 'Extraction, reasoning, generation' 'HTTPS'
+}
+
+views {
+  view contextView {
+    title 'L1 — Knowledge Compiler in Context'
+    include *
+
+    autoLayout LeftRight
+  }
+}

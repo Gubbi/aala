@@ -1,0 +1,261 @@
+specification {
+  element actor {
+    style {
+      shape person
+    }
+  }
+  element externalActor {
+    style {
+      shape person
+      color secondary
+    }
+  }
+  element system
+  element externalSystem {
+    style {
+      color secondary
+    }
+  }
+  element container
+  element webApp {
+    style {
+      shape browser
+    }
+  }
+  element database {
+    style {
+      shape storage
+    }
+  }
+  deploymentNode env
+}
+
+model {
+  user = actor 'End User' 'PM, Designer, EM, Engineer, Director'
+  admin = actor 'Tenant Admin' 'Configures, evaluates, manages domain fit'
+  builder = externalActor 'SaaS Builder' 'Ships capability, owns benchmarks'
+  rev = actor 'Reviewer'
+  team = actor 'Team'
+
+  src = externalSystem 'Source' 'Slack / Meet / ... (used in sequence views)'
+  slack = externalSystem 'Slack' 'Conversations, decisions, micro-debates'
+  meet = externalSystem 'Meeting Platforms' 'Transcripts, action items'
+  github_src = externalSystem 'GitHub / GitLab (source)' 'PRs, reviews, code'
+  drive = externalSystem 'Doc Stores' 'Drive, Notion, Confluence'
+  llm = externalSystem 'Cloud LLM' 'External hosted LLM provider'
+  github_pr = externalSystem 'GitHub / GitLab (review)' 'Hosts the Claim Store; PR UI is the review surface'
+
+  kc = system 'Knowledge Compiler' 'Per-tenant' {
+    gw = webApp 'API Gateway / Console' 'Query UI, admin console, eval surfaces' {
+      technology 'Web app'
+    }
+    conn = container 'Source Connectors' 'Per-source adapters; webhook + polling' {
+      technology 'Service'
+    }
+    raw = database 'Raw Store (L0)' 'Append-only logs with metadata' {
+      technology 'Blob store + relational metadata index'
+    }
+    ingest = container 'Ingestion Service' 'Normalize, filter, batch for extraction' {
+      technology 'Service'
+    }
+    extract = container 'Extraction Service' 'Atom extraction with provenance, premise tags, confidence' {
+      technology 'Service + LLM'
+    }
+    embed = database 'Embedding Index' 'Candidate-conflict NN search only' {
+      technology 'Vector index'
+    }
+    conflict = container 'Conflict Engine' 'Deterministic → semantic → LLM judge' {
+      technology 'Service + LLM'
+    }
+    blast = container 'Blast Radius Service' 'Direct + premise + LLM-implicit impact analysis' {
+      technology 'Service + LLM'
+    }
+    claims = database 'Claim Store (Git Repo)' 'Canonical YAML atoms + prose projections; the SoR' {
+      technology 'Git'
+    }
+    tree = container 'Tree Index' 'Multi-axis navigation trees over claim store' {
+      technology 'Service'
+    }
+    project = container 'Projection Service' 'Scoped re-render of prose; templated + cached LLM' {
+      technology 'Service + LLM'
+    }
+    bot = container 'PR Orchestrator Bot' 'Branches, PRs, comments, completeness gates' {
+      technology 'Service'
+    }
+    query = container 'Query Service' 'Tree-navigation retrieval' {
+      technology 'Service + LLM'
+    }
+    gen = container 'Generation Service' 'Doc / answer synthesis with provenance' {
+      technology 'Service + LLM'
+    }
+    eval = container 'Eval Framework' 'Benchmark, golden runner, shadow, telemetry' {
+      technology 'Service'
+    }
+    telem = container 'Aggregate Telemetry'
+    bench = container 'Benchmark Suite'
+  }
+
+  slack -> kc.conn 'Webhooks' 'HTTPS'
+  meet -> kc.conn 'Transcripts' 'HTTPS'
+  github_src -> kc.conn 'PR / commit events' 'HTTPS'
+  drive -> kc.conn 'Polling' 'HTTPS'
+
+  kc.conn -> kc.ingest 'Normalized fragments'
+  kc.ingest -> kc.raw 'Append'
+  kc.ingest -> kc.extract 'Filtered batches'
+
+  kc.extract -> llm 'Prompts' 'HTTPS'
+  kc.extract -> kc.embed 'Atom embeddings'
+  kc.extract -> kc.conflict 'Proposed atoms'
+  kc.conflict -> kc.embed 'NN lookup'
+  kc.conflict -> kc.claims 'Compare against canonical'
+  kc.conflict -> llm 'Judge prompts'
+  kc.conflict -> kc.blast 'Trigger on decision claims'
+  kc.blast -> kc.claims 'Traverse premise tags + refs'
+  kc.blast -> llm 'Implicit-dep reasoning'
+
+  kc.bot -> kc.claims 'Branch, commit, merge'
+  kc.bot -> kc.project 'Trigger scoped re-render'
+  kc.project -> kc.claims 'Read atoms, write prose'
+  kc.project -> llm 'Narrative rendering (cached)'
+  kc.bot -> github_pr 'Open PR, post comments' 'API'
+  kc.conflict -> kc.bot 'Classified atoms + conflicts'
+  kc.blast -> kc.bot 'Blast radius report'
+
+  user -> kc.gw 'Queries, reviews' 'HTTPS'
+  admin -> kc.gw 'Configure, run golden set' 'HTTPS'
+  kc.gw -> kc.query 'Forward'
+  kc.query -> kc.tree 'Navigate'
+  kc.tree -> kc.claims 'Read sections'
+  kc.query -> kc.gen 'Retrieved atoms'
+  kc.gen -> llm 'Synthesis'
+  kc.gen -> kc.gw 'Answers + provenance'
+
+  admin -> kc.eval 'Tenant golden set'
+  builder -> kc.eval 'Benchmark suite' 'CI'
+  kc.eval -> kc.query 'Test'
+  kc.eval -> kc.conflict 'Test'
+}
+
+deployment {
+  tenantA = env 'Tenant A' {
+    instanceOf kc.claims
+    instanceOf kc.raw
+    instanceOf kc.embed
+  }
+  tenantB = env 'Tenant B' {
+    instanceOf kc.claims
+    instanceOf kc.raw
+    instanceOf kc.embed
+  }
+  shared = env 'Shared Services (stateless)' {
+    instanceOf kc.extract
+    instanceOf kc.conflict
+    instanceOf kc.project
+    instanceOf kc.query
+    instanceOf kc.gen
+  }
+  builderPlane = env 'Builder Plane' {
+    instanceOf kc.telem
+    instanceOf kc.bench
+  }
+
+  tenantA -> shared
+  tenantB -> shared
+  shared -> builderPlane 'aggregate signals'
+}
+
+views {
+  view containersView of kc {
+    title 'L2 Containers — Knowledge Compiler'
+    include *
+  }
+
+  dynamic view writePath {
+    title 'Write Path — Ingest to Merged PR'
+
+    src -> kc.conn 'New event'
+    kc.conn -> kc.ingest 'Normalized fragment + metadata'
+    kc.ingest -> kc.raw 'Append (immutable)'
+    kc.ingest -> kc.ingest 'Filter / classify relevance'
+    kc.ingest -> kc.extract 'Batched candidates'
+    kc.extract -> kc.extract 'Extract atoms (LLM)'
+    kc.extract -> kc.extract 'Assign premise tags, confidence, scope'
+    kc.extract -> kc.conflict 'Proposed atoms'
+    kc.conflict -> kc.conflict 'Deterministic match'
+    kc.conflict -> kc.conflict 'Embedding NN → candidates'
+    kc.conflict -> kc.conflict 'LLM judge → classification'
+    kc.conflict -> kc.blast '[If decision-type] Trigger impact analysis'
+    kc.blast -> kc.blast '[If decision-type] Direct refs + premise tags + LLM-implicit'
+    kc.blast -> kc.bot '[If decision-type] Blast radius report'
+    kc.conflict -> kc.bot 'Classified atoms + conflicts'
+    kc.bot -> kc.claims 'Open branch'
+    kc.bot -> kc.claims 'Write/modify atom YAML'
+    kc.bot -> kc.project 'Trigger scoped re-render'
+    kc.project -> kc.claims 'Read affected sections'
+    kc.project -> kc.project 'Render (template + cached LLM)'
+    kc.project -> kc.claims 'Write prose projection'
+    kc.bot -> kc.claims 'Write CHANGES.md, BLAST_RADIUS.md'
+    kc.bot -> github_pr 'Open PR + line comments at conflicts'
+    rev -> github_pr 'Review (prose diffs + bot annotations)'
+    rev -> github_pr 'Approve / edit / request changes'
+    github_pr -> kc.bot 'Merge event'
+    kc.bot -> kc.claims 'Update atom statuses (hanging → active/superseded)'
+  }
+
+  dynamic view readPath {
+    title 'Read Path — Query to Answer'
+    description '
+      Steps marked "(loop)" repeat for each level of tree descent
+      until leaf nodes are reached.
+    '
+
+    user -> kc.gw 'Query: "How does checkout flow work?"'
+    kc.gw -> kc.query 'Forward (with audience + context)'
+    kc.query -> llm 'Parse intent, select tree axis'
+    kc.query -> kc.tree 'Navigate (e.g., by-domain → checkout → ...)'
+    kc.tree -> kc.claims '(loop) Read node atoms + child labels'
+    kc.tree -> kc.query '(loop) Candidate branches'
+    kc.query -> llm '(loop) Choose descent'
+    kc.query -> kc.claims 'Read leaf atoms in selected branches'
+    kc.query -> kc.gen 'Atoms + navigation path'
+    kc.gen -> kc.claims 'Optionally read aligned prose for narrative anchoring'
+    kc.gen -> llm 'Synthesize with provenance + conflict awareness'
+    kc.gen -> kc.gw 'Answer + cited atoms + nav path'
+    kc.gw -> user 'Render with expandable provenance'
+  }
+
+  dynamic view blastRadiusPath {
+    title 'Blast Radius Path — Sweeping Decision'
+    description '
+      Steps marked "(loop)" repeat per atom until all affected
+      atoms have been resolved (kept / adapted / removed / deferred).
+    '
+
+    src -> kc.extract 'Decision input ("use PWA")'
+    kc.extract -> kc.conflict 'Atom: decision/use-pwa'
+    kc.conflict -> kc.conflict 'Detect supersession of decision/use-android'
+    kc.conflict -> kc.blast 'Trigger'
+    kc.blast -> kc.claims 'Direct refs to decision/use-android (12 atoms)'
+    kc.blast -> kc.claims 'Premise-tagged platform:android (28 atoms)'
+    kc.blast -> kc.blast 'LLM-implicit pass over Mobile subtree (33 atoms)'
+    kc.blast -> kc.bot '73 affected, grouped by category'
+    kc.bot -> kc.claims 'Open branch decision/use-pwa'
+    kc.bot -> kc.claims 'Status = hanging for 73 atoms'
+    kc.bot -> kc.claims 'Write BLAST_RADIUS.md'
+    kc.bot -> github_pr 'Open PR with completeness gate'
+    team -> github_pr '(loop) Mark atom keep / adapt / remove / defer'
+    github_pr -> kc.bot '(loop) Webhook'
+    kc.bot -> kc.claims '(loop) Update atom status + rationale'
+    kc.bot -> kc.blast '(loop) Re-evaluate (newly-resolved atoms inform implicit pass)'
+    kc.blast -> kc.bot '(loop) Refined report'
+    team -> github_pr 'All 73 resolved (or deferred w/ rationale)'
+    github_pr -> kc.bot 'Approve + merge'
+    kc.bot -> kc.claims 'Apply final atom states'
+  }
+
+  deployment view multiTenancy {
+    title 'Multi-Tenancy Topology'
+    include *
+  }
+}

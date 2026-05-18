@@ -1,0 +1,21 @@
+{
+  "name": "aala-likec4",
+  "private": true,
+  "description": "LikeC4 workspace for L1/L2/L3 architecture diagrams.",
+  "scripts": {
+    "export:L1": "likec4 export png -o ../docs/diagrams --flat --seq -f contextView L1",
+    "export:L2": "likec4 export png -o ../docs/diagrams --flat --seq -f containersView -f writePath -f readPath -f blastRadiusPath -f multiTenancy L2",
+    "export:L3": "likec4 export png -o ../docs/diagrams --flat --seq -f extractionView -f conflictEngineView -f blastRadiusView -f projectionView -f prBotView -f treeIndexView -f queryServiceView -f generationServiceView -f evalFrameworkView L3",
+    "export": "npm run export:L1 && npm run export:L2 && npm run export:L3",
+    "validate": "likec4 validate L1 && likec4 validate L2 && likec4 validate L3",
+    "start:L1": "likec4 start L1",
+    "start:L2": "likec4 start L2",
+    "start:L3": "likec4 start L3"
+  },
+  "devDependencies": {
+    "likec4": "^1.56.0"
+  },
+  "dependencies": {
+    "@rolldown/binding-darwin-arm64": "^1.0.1"
+  }
+}
