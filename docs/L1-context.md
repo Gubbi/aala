@@ -117,4 +117,4 @@ Failure modes the system explicitly accepts:
 
 ---
 
-*Next: see [`L2-containers.md`](./L2-containers.md) for the container-level architecture and [`L3-components.md`](./L3-components.md) for the component-level breakdown.*
+*Next: see [`L2/`](./L2/) for the container-level architecture (chapters 01 through 13) and [`L3/`](./L3/) for the component-level breakdown (one chapter per container).*
