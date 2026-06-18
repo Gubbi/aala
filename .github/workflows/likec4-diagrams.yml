@@ -29,10 +29,10 @@ jobs:
         working-directory: docs/likec4
         run: npm ci --include=optional
 
-      # The package.json pins @rolldown/binding-darwin-arm64 for local macOS
-      # dev. On Linux CI we need the matching x64 binding; npm's optional-dep
-      # handling is unreliable across npm/node versions, so install explicitly.
-      - name: Install Linux rolldown binding
+      # rolldown ships its native binding as platform-specific optionalDependencies,
+      # which `npm ci --include=optional` resolves per platform. Force-install the
+      # Linux x64 binding as insurance against flaky optional-dep resolution on CI.
+      - name: Ensure Linux rolldown binding
         working-directory: docs/likec4
         run: npm install --no-save @rolldown/binding-linux-x64-gnu
 

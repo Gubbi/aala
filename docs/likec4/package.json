@@ -14,8 +14,5 @@
   },
   "devDependencies": {
     "likec4": "^1.56.0"
-  },
-  "dependencies": {
-    "@rolldown/binding-darwin-arm64": "^1.0.1"
   }
 }
