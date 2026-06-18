@@ -12,7 +12,7 @@ Atoms also implements the [Projection facet](./04-projection.md) (required) over
 
 ## The typed grammar
 
-Five concrete atom types form the core grammar (see [`spec/03-data-model.md`](../spec/03-data-model.md) for normative details):
+Five concrete atom types form the core grammar (see [`spec/03-data-model.md`](../../spec/03-data-model.md) for normative details):
 
 | Type | Role |
 |---|---|
@@ -29,12 +29,12 @@ The grammar replaces the older notion of "one atom type per claim flavor" (Decis
 | Concern | Notes |
 |---|---|
 | Atom schema | The base shape and per-type rules. Field requirements, status enum, scope structure. The schema is owned here because Extraction lives here — the producer of a record owns its shape. |
-| Standard-library registration | Per tree, the pre-registered ClassificationAtoms and PredicateKindAtoms (see [`spec/03`](../spec/03-data-model.md)). Atoms initializes the standard library at tree creation. |
+| Standard-library registration | Per tree, the pre-registered ClassificationAtoms and PredicateKindAtoms (see [`spec/03`](../../spec/03-data-model.md)). Atoms initializes the standard library at tree creation. |
 | Durable storage | Atoms persisted in a diffable form. Persistence is an implementation choice; the conceptual contract is durability + diff-friendliness. |
 | Extraction | Fragments → proposed atoms. Extractors emit `entity`, `relation`, `classification`, and `predicate` atoms; the standard-library lookup resolves their classifications and predicates. |
-| Conflict classification | New atoms classified against the canonical record. Twenty-plus structured outcomes with three resolution modes (auto-resolve / soft-prompt / hard-block). See [`spec/06`](../spec/06-conflict-classification.md). |
+| Conflict classification | New atoms classified against the canonical record. Twenty-plus structured outcomes with three resolution modes (auto-resolve / soft-prompt / hard-block). See [`spec/06`](../../spec/06-conflict-classification.md). |
 | Status transitions | Present states (`active`/`hanging`/`deferred`/`deprecated`) and removal outcomes (`superseded`/`duplicate`/`rejected`/`removed`). Status Manager is the single funnel. |
-| Cascade machinery | Three channels: predicate-kind (dependency / composition rules), scope-premise (`Scope.constraint_atoms` reverse-index), derivation-invalidation. Run to fixpoint on every status transition. See [`spec/07`](../spec/07-atom-lifecycle.md). |
+| Cascade machinery | Three channels: predicate-kind (dependency / composition rules), scope-premise (`Scope.constraint_atoms` reverse-index), derivation-invalidation. Run to fixpoint on every status transition. See [`spec/07`](../../spec/07-atom-lifecycle.md). |
 | Relation traversal | Walks the RelationAtom graph filtered by predicate kind / specific PredicateAtom / depth / tree. Replaces the older references/depends_on graph. |
 | Classification resolution | Walks `is_a` chains, accumulates schemas (attributes + required_relations + disjoint_with) from ancestors, validates proposed atoms against the cumulative schema. |
 | Predicate resolution | Walks PredicateAtom hierarchies to the underlying PredicateKindAtom, accumulating characteristics and domain/range constraints. |
@@ -82,7 +82,7 @@ The public read API is structured around atoms, classifications, predicates, and
 
 Atoms operates against whichever snapshot is currently selected. Snapshot lifecycle (fork / switch / publish / discard) is owned by Orchestration. Concrete snapshot realizations (git working tree, versioning DB, content-addressed manifest) are implementation choices.
 
-The binding interface contract — exact signatures, error model, idempotency rules — is in [`docs/interfaces/atoms.md`](../interfaces/atoms.md).
+The binding interface contract — exact signatures, error model, idempotency rules — is in [`interfaces/atoms.md`](../../interfaces/atoms.md).
 
 ## Dependencies
 

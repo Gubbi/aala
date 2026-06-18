@@ -4,7 +4,7 @@
 
 The key words **MUST**, **MUST NOT**, **REQUIRED**, **SHALL**, **SHALL NOT**, **SHOULD**, **SHOULD NOT**, **RECOMMENDED**, **NOT RECOMMENDED**, **MAY**, and **OPTIONAL** in this specification are to be interpreted as described in [BCP 14](https://www.rfc-editor.org/info/bcp14) \[[RFC 2119](https://www.rfc-editor.org/rfc/rfc2119)\] \[[RFC 8174](https://www.rfc-editor.org/rfc/rfc8174)\] when, and only when, they appear in all capitals, as shown here.
 
-This declaration covers the entire specification: every file under `docs/spec/` and [`docs/interfaces/`](../interfaces/).
+This declaration covers the entire specification: every file under `spec/` and [`interfaces/`](../interfaces/).
 
 Significance is keyed on capitalization alone. An all-capitals keyword binds whether or not it is bolded — bolding is typography, never significance. Lowercase use of the same words (e.g., "must be careful", "may be returned") carries no normative weight.
 
@@ -79,9 +79,9 @@ Every concept in this specification has **exactly one normative home**. Every ot
 
 | Concern | Normative home |
 |---|---|
-| Type shapes, method signatures, per-method **Errors** / **Access** / **Concurrency** declarations, event unions | The container's interface file in [`docs/interfaces/`](../interfaces/) |
+| Type shapes, method signatures, per-method **Errors** / **Access** / **Concurrency** declarations, event unions | The container's interface file in [`interfaces/`](../interfaces/) |
 | Per-method idempotency contracts | The idempotency registry in [`interfaces/00-shared-types.md § Idempotency`](../interfaces/00-shared-types.md#idempotency); the defining vocabulary is [§ Idempotency and last-write-wins](#idempotency-and-last-write-wins). A method's own **Idempotency** line is an informative restatement of its registry row. |
-| Semantics, invariants, lifecycles, ordering, classification rules, conformance | The owning spec chapter in `docs/spec/` |
+| Semantics, invariants, lifecycles, ordering, classification rules, conformance | The owning spec chapter in `spec/` |
 | Registries (closed enumerations — containers, identifier minting, predicate kinds, the standard library, conflict outcomes, use-case keys, activities, operations, end-states) | [Appendix A — Registries](./appendix-a-registries.md) carries the enumeration; the owning chapter named at the top of each appendix section defines its semantics |
 
 Two prohibitions follow:
@@ -91,4 +91,4 @@ Two prohibitions follow:
 
 **Precedence.** Where any duplicated or derived text disagrees with the normative home, the home governs, and the disagreement is a defect in the other text.
 
-[`docs/analysis/`](../analysis/) is informative — forward-facing analyses and comparisons. Nothing outside `docs/spec/` and `docs/interfaces/` carries normative weight.
+[`docs/analysis/`](../docs/analysis/) is informative — forward-facing analyses and comparisons. Nothing outside `spec/` and `interfaces/` carries normative weight.

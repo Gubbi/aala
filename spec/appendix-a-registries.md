@@ -2,7 +2,7 @@
 
 This appendix is **normative**. It is the single home of the specification's closed registries ([01 — Conventions § Normative ownership](./01-conventions.md#normative-ownership)): each enumeration below is exhaustive, and no chapter re-enumerates it. The appendix carries **enumeration only** — each section names the **owning chapter**, which defines what the entries mean, the rules they obey, and what extending the registry costs ([11 — Versioning](./11-versioning.md)). Where any other text appears to enumerate a registry differently, this appendix governs.
 
-Event unions and type shapes are not registries; they live in [`docs/interfaces/`](../interfaces/) per the normative-ownership rule. Where an interface type mirrors a registry here (e.g. `ConflictOutcomeKind`), the section says so, and the two MUST stay in lockstep.
+Event unions and type shapes are not registries; they live in [`interfaces/`](../interfaces/) per the normative-ownership rule. Where an interface type mirrors a registry here (e.g. `ConflictOutcomeKind`), the section says so, and the two MUST stay in lockstep.
 
 ## Containers
 

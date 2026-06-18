@@ -1,6 +1,6 @@
 # Blast Radius — Impact Analysis for Transitions
 
-**Status: optional.** Deployments that don't need impact-analysis-as-a-service can skip this container. Without it, the cascade machinery in Atoms (per [`docs/spec/07-atom-lifecycle.md`](../spec/07-atom-lifecycle.md)) still runs on every transition — Blast Radius doesn't *cause* the cascade, it *surfaces* it as a queryable read-only report.
+**Status: optional.** Deployments that don't need impact-analysis-as-a-service can skip this container. Without it, the cascade machinery in Atoms (per [`spec/07-atom-lifecycle.md`](../../spec/07-atom-lifecycle.md)) still runs on every transition — Blast Radius doesn't *cause* the cascade, it *surfaces* it as a queryable read-only report.
 
 ## Concern
 
@@ -12,7 +12,7 @@ In one sentence: **Blast Radius answers "what else changes when this atom transi
 
 ## Relationship to the cascade in Atoms
 
-Atoms already runs a cascade fixpoint on every transition through three channels (per [`docs/spec/07-atom-lifecycle.md`](../spec/07-atom-lifecycle.md)):
+Atoms already runs a cascade fixpoint on every transition through three channels (per [`spec/07-atom-lifecycle.md`](../../spec/07-atom-lifecycle.md)):
 
 1. **Predicate-kind cascade** — dependency / composition rules per RelationAtom's kind.
 2. **Scope-premise cascade** — every atom whose `Scope.constraint_atoms` contains the changing atom transitions to `hanging`.
@@ -27,9 +27,9 @@ When Blast Radius is absent, the cascade still runs — Atoms handles it. The Bl
 | Concern | Notes |
 |---|---|
 | Blast reports | One report per analysis. Lists impacted atoms with cascade paths, predicted states, trees affected, and resolution tracking. Reports live in the current snapshot or container-internal storage (impl choice). |
-| Structural impact (delegated) | The structural impact set comes read-only from [`Atoms.simulate_transition`](../interfaces/atoms.md) — the dry-run of the one cascade engine. Blast Radius owns **no** cascade-traversal logic or reverse indexes of its own; that lives in Atoms, guaranteeing the report matches the real cascade. |
+| Structural impact (delegated) | The structural impact set comes read-only from [`Atoms.simulate_transition`](../../interfaces/atoms.md) — the dry-run of the one cascade engine. Blast Radius owns **no** cascade-traversal logic or reverse indexes of its own; that lives in Atoms, guaranteeing the report matches the real cascade. |
 | Iterative refinement state | As humans annotate atoms during review, the LLM-implicit pass uses those annotations as signal and re-runs against the residual set. Each report carries its iteration history. |
-| Analysis pipeline | The pipeline from [`docs/spec/08-blast-radius.md`](../spec/08-blast-radius.md): origin resolution → structural cascade via `Atoms.simulate_transition` → optional LLM-implicit pass (additive) → report assembly. |
+| Analysis pipeline | The pipeline from [`spec/08-blast-radius.md`](../../spec/08-blast-radius.md): origin resolution → structural cascade via `Atoms.simulate_transition` → optional LLM-implicit pass (additive) → report assembly. |
 
 ## Resolution flow — how work returns to Atoms
 
@@ -80,7 +80,7 @@ Full L3 detail lives in [`docs/L3/07-blast-radius.md`](../L3/07-blast-radius.md)
 
 ## What Blast Radius does NOT do
 
-- Cause cascades — that's Atoms's Status Manager (per [`docs/spec/07-atom-lifecycle.md`](../spec/07-atom-lifecycle.md)). Blast Radius is read-only analysis.
+- Cause cascades — that's Atoms's Status Manager (per [`spec/07-atom-lifecycle.md`](../../spec/07-atom-lifecycle.md)). Blast Radius is read-only analysis.
 - Detect conflicts — that's Atoms's Conflict pipeline.
 - Mutate atoms — except via `Atoms.update_status` invoked from `record_resolution`. Content edits (adapting an impacted atom's payload) are made by humans against the atom via `Atoms.propose`, not by Blast Radius.
 - Communicate the report to humans — the agent or UI reads reports via the read API and presents them.

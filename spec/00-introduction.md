@@ -2,7 +2,7 @@
 
 ## What aala is
 
-aala is a system that turns fragmented organizational inputs (chat threads, meeting transcripts, version-control discussions, scattered docs) into a canonical, queryable knowledge layer made of structured **atoms**. Atoms are the System of Record; prose **projections** are derived read views each contentful container exposes over its own content — for human review, LLM grounding, and **export/interchange** (the projection materializes under a single configured output profile, an interchange format by default — see [02 — Conformance § Required facet — Projection](./02-conformance.md#required-facet--projection)). Multi-axis **navigation** and **blast-radius** impact analysis surface what's affected when a decision changes. Composing answers or documents from these read surfaces is the job of external agents consuming aala (see [`docs/analysis/agent-integration-pattern.md`](../analysis/agent-integration-pattern.md)).
+aala is a system that turns fragmented organizational inputs (chat threads, meeting transcripts, version-control discussions, scattered docs) into a canonical, queryable knowledge layer made of structured **atoms**. Atoms are the System of Record; prose **projections** are derived read views each contentful container exposes over its own content — for human review, LLM grounding, and **export/interchange** (the projection materializes under a single configured output profile, an interchange format by default — see [02 — Conformance § Required facet — Projection](./02-conformance.md#required-facet--projection)). Multi-axis **navigation** and **blast-radius** impact analysis surface what's affected when a decision changes. Composing answers or documents from these read surfaces is the job of external agents consuming aala (see [`docs/analysis/agent-integration-pattern.md`](../docs/analysis/agent-integration-pattern.md)).
 
 The atom model is a typed grammar: five concrete atom types (`entity`, `relation`, `classification`, `predicate`, `predicate_kind`) compose into a graph where classifications carry structural schemas and predicates carry typed relationships. The model is FOL-friendly in its substrate while keeping resolution human-in-loop for contestable knowledge.
 
@@ -13,7 +13,7 @@ This specification defines the contract that any conformant implementation of aa
 This spec binds at the level of:
 
 - The **container set** — which capability containers MUST or MAY be present (see [02 — Conformance](./02-conformance.md)).
-- The **interface contracts** — each container's methods, signatures, `(activity, end_state)` error declarations, idempotency, and concurrency rules. The binding signatures live in [`docs/interfaces/`](../interfaces/) and are referenced from spec chapters.
+- The **interface contracts** — each container's methods, signatures, `(activity, end_state)` error declarations, idempotency, and concurrency rules. The binding signatures live in [`interfaces/`](../interfaces/) and are referenced from spec chapters.
 - The **data model** — the five concrete atom types, the schema model, classification semantics, predicate kinds, status states and removal outcomes, the entailment tiers.
 - The **behavioral invariants** — snapshot coherence, Delta-Stream ordering, replay equivalence, atom lifecycle, conflict classification and resolution modes, blast radius, error model.
 - The **published registries** — the closed enumerations consolidated in [Appendix A — Registries](./appendix-a-registries.md): the containers, identifier minting, the predicate kinds, the standard library every tree initializes with, the conflict outcomes, the LLM Gateway use-case keys, and the error-model vocabularies (activities, operations, end-states).
@@ -31,18 +31,18 @@ The spec does not bind:
 - **Storage backends**. As long as the snapshot lifecycle and Delta-Stream semantics hold.
 - **Caching strategy for derived (entailed) atoms**. The spec mandates which entailments must be computed; implementations choose lazy, eager, or hybrid materialization.
 - **Identity and access policy.** Caller identity, token formats, identity providers, and the role/policy machinery that *produces* a session's grants. The spec binds the grant check itself ([02 — Conformance § Access control](./02-conformance.md#access-control)) and, per wire profile, how establishment context is conveyed ([13 — Wire Profiles](./13-wire-profiles.md)); how a deployment decides who receives which grants is its own concern.
-- **Multi-tenancy.** This contract describes **one logical deployment** — a single tenant's knowledge layer, with its own snapshot space, trees, standard library, and canonical pointer. A multi-tenant offering (e.g., a SaaS) operates N logical deployments behind its own tenancy layer: that layer attaches tenant identity and routes each caller to its deployment at session establishment ([04 — Snapshots § Session binding](./04-snapshots.md#session-binding)), and none of it is bound here. No shape in this spec or in [`docs/interfaces/`](../interfaces/) carries a tenant identifier. The conformance consequence is stated in [02 — Conformance § Single-deployment scope](./02-conformance.md#single-deployment-scope).
+- **Multi-tenancy.** This contract describes **one logical deployment** — a single tenant's knowledge layer, with its own snapshot space, trees, standard library, and canonical pointer. A multi-tenant offering (e.g., a SaaS) operates N logical deployments behind its own tenancy layer: that layer attaches tenant identity and routes each caller to its deployment at session establishment ([04 — Snapshots § Session binding](./04-snapshots.md#session-binding)), and none of it is bound here. No shape in this spec or in [`interfaces/`](../interfaces/) carries a tenant identifier. The conformance consequence is stated in [02 — Conformance § Single-deployment scope](./02-conformance.md#single-deployment-scope).
 - **Historical reconstruction.** The API surface addresses the current state of the snapshot it runs against. Atoms are mutable ([03 — Data Model § Mutability and revision](./03-data-model.md#mutability-and-revision)); previously published snapshots carry what was. Querying past states is a store concern, not an API concern — a deployment whose persistence keeps history (e.g., one built on the git-backed wire profile) recovers it from the store — and the Delta Stream is forward catch-up, not a historical query surface ([05 — Delta Streams](./05-delta-streams.md)).
 
 ## Relationship to other documents
 
-The specification is self-contained: `docs/spec/` and `docs/interfaces/` together are the complete binding contract. An implementer needs nothing else.
+The specification is self-contained: `spec/` and `interfaces/` together are the complete binding contract. An implementer needs nothing else.
 
 | Document | Status | Use |
 |---|---|---|
-| `docs/spec/` (this folder) | **Normative** | Semantics, invariants, registries, lifecycles, conformance. |
-| [`docs/interfaces/`](../interfaces/) | **Normative** | The binding signatures and per-method contracts. Spec chapters reference these. |
-| [`docs/analysis/`](../analysis/) | Informative | Forward-facing analyses (e.g., ontology comparison). Not binding. |
+| `spec/` (this folder) | **Normative** | Semantics, invariants, registries, lifecycles, conformance. |
+| [`interfaces/`](../interfaces/) | **Normative** | The binding signatures and per-method contracts. Spec chapters reference these. |
+| [`docs/analysis/`](../docs/analysis/) | Informative | Forward-facing analyses (e.g., ontology comparison). Not binding. |
 
 Nothing outside these folders carries normative weight. The ownership split and precedence rule between spec chapters and interface files are defined in [01 — Conventions § Normative ownership](./01-conventions.md#normative-ownership). The container partition itself — which containers exist and which are optional — is defined in [02 — Conformance](./02-conformance.md).
 

@@ -1,6 +1,6 @@
 # 03 — Data Model
 
-This chapter defines the binding atom data model. The typed shape lives in [`docs/interfaces/00-shared-types.md`](../interfaces/00-shared-types.md); the spec overview is in [`README.md`](./README.md) and [`00 — Introduction`](./00-introduction.md). This chapter is the normative specification.
+This chapter defines the binding atom data model. The typed shape lives in [`interfaces/00-shared-types.md`](../interfaces/00-shared-types.md); the spec overview is in [`README.md`](./README.md) and [`00 — Introduction`](./00-introduction.md). This chapter is the normative specification.
 
 ## Atom types
 
@@ -20,7 +20,7 @@ The set of concrete atom types is **closed**. Implementations MUST NOT introduce
 
 ## Identifier format
 
-Atom and supporting identifiers MUST follow the normative formats specified in [`docs/interfaces/00-shared-types.md`](../interfaces/00-shared-types.md); minting authority, uniqueness scope, and stability are fixed per identifier type in [Appendix A § Identifier minting](./appendix-a-registries.md#identifier-minting). For atoms specifically:
+Atom and supporting identifiers MUST follow the normative formats specified in [`interfaces/00-shared-types.md`](../interfaces/00-shared-types.md); minting authority, uniqueness scope, and stability are fixed per identifier type in [Appendix A § Identifier minting](./appendix-a-registries.md#identifier-minting). For atoms specifically:
 
 - `AtomId` has the form `atom:<type>:<opaque>` where `<type>` is one of the five concrete atom type words (`entity`, `relation`, `classification`, `predicate`, `predicate_kind`) and `<opaque>` matches `[A-Za-z0-9_\-.]+`. The binding rule is **total id length ≤ 255**; since the `atom:<type>:` prefix is 12–20 characters (longest for `classification` / `predicate_kind`), `<opaque>` is at least 1 and at most `255 − len("atom:<type>:")` (235 in the worst case).
 - The id's `<type>` prefix MUST equal the atom's `type` field. Validators MUST reject atoms where the two disagree.

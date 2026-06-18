@@ -5,7 +5,7 @@ Formal interface contracts for each container, plus the cross-cutting projection
 ## Audience
 
 - **Implementer** writing a concrete realization of a container (or all of aala).
-- **Spec author** drawing on these to assemble `docs/spec/` — the consolidated formal specification.
+- **Spec author** drawing on these to assemble `spec/` — the consolidated formal specification.
 - **Reader** comparing implementations or building a client.
 
 ## What's here
@@ -24,7 +24,7 @@ Formal interface contracts for each container, plus the cross-cutting projection
 
 ## Conventions
 
-- **Normative keywords** — the key words MUST, MUST NOT, REQUIRED, SHALL, SHALL NOT, SHOULD, SHOULD NOT, RECOMMENDED, NOT RECOMMENDED, MAY, and OPTIONAL in every file under `docs/interfaces/` are to be interpreted as described in BCP 14 (\[[RFC 2119](https://www.rfc-editor.org/rfc/rfc2119)\] \[[RFC 8174](https://www.rfc-editor.org/rfc/rfc8174)\]) when, and only when, they appear in all capitals. The declaration in [01 — Conventions § Normative keywords](../spec/01-conventions.md#normative-keywords) covers this folder; lowercase use of the same words carries no normative weight.
+- **Normative keywords** — the key words MUST, MUST NOT, REQUIRED, SHALL, SHALL NOT, SHOULD, SHOULD NOT, RECOMMENDED, NOT RECOMMENDED, MAY, and OPTIONAL in every file under `interfaces/` are to be interpreted as described in BCP 14 (\[[RFC 2119](https://www.rfc-editor.org/rfc/rfc2119)\] \[[RFC 8174](https://www.rfc-editor.org/rfc/rfc8174)\]) when, and only when, they appear in all capitals. The declaration in [01 — Conventions § Normative keywords](../spec/01-conventions.md#normative-keywords) covers this folder; lowercase use of the same words carries no normative weight.
 - **Signature syntax** is TypeScript-like for readability. The shape is what's binding, not the syntax — implementations may use any language whose types can express the same constraints.
 - **`Promise<T>`** denotes asynchronous return; `Stream<T>` denotes a streaming response that yields zero-or-more items in order.
 - **Optional parameters** use `?` after the name; optional fields use `?` after the field name.

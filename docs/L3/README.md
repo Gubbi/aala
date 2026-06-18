@@ -34,8 +34,8 @@ The canonical data model (the `Atom` type hierarchy and its supporting types) li
 
 ## What L3 does NOT contain
 
-- **Exact interface signatures** — those live in [`docs/interfaces/`](../interfaces/) (one file per container).
+- **Exact interface signatures** — those live in [`interfaces/`](../../interfaces/) (one file per container).
 - **Cross-container behavior** — that's L2.
 - **Implementation-specific component choices** — those live in `docs/implementations/<impl>/L3.md`.
 - **Cross-cutting concerns** — those are L2 ([`12-cross-cutting.md`](../L2/12-cross-cutting.md)).
-- **Normative requirements** — those live in `docs/spec/`.
+- **Normative requirements** — those live in `spec/`.

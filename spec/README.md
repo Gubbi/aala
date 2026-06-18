@@ -6,7 +6,7 @@ This folder is the **binding specification** for aala. It defines what a conform
 
 | Role | Reads this for |
 |---|---|
-| **Implementer** | What they're building. The chapters here, plus [`docs/interfaces/`](../interfaces/), define the contract that callers will hold the implementation to. |
+| **Implementer** | What they're building. The chapters here, plus [`interfaces/`](../interfaces/), define the contract that callers will hold the implementation to. |
 | **Deployer** | What they can expect from any conformant implementation, and what they must configure (LLM gateway, snapshot backing, wire profiles, etc.). |
 | **Spec reviewer** | Where to ground a critique or proposal. |
 | **Tool / client author** | What aala will and won't do under any conformant implementation. |
@@ -36,7 +36,7 @@ Start with [`00-introduction.md`](./00-introduction.md) → [`01-conventions.md`
 
 ## Relationship to the interfaces
 
-- [`docs/interfaces/`](../interfaces/) — normative. Each container's method signatures, error declarations, idempotency, and concurrency rules are binding.
-- [`docs/analysis/`](../analysis/) — informative; forward-facing analyses.
+- [`interfaces/`](../interfaces/) — normative. Each container's method signatures, error declarations, idempotency, and concurrency rules are binding.
+- [`docs/analysis/`](../docs/analysis/) — informative; forward-facing analyses.
 
 The spec and the interface files together are the complete, self-contained contract. The spec adds the cross-cutting invariants and rules the interfaces leave implicit — atom data model, classification semantics, lifecycle, ordering, conformance levels, error retry, versioning, edge cases, wire profiles. Ownership and precedence between the two are defined in [01 — Conventions § Normative ownership](./01-conventions.md#normative-ownership); the container partition is defined in [02 — Conformance](./02-conformance.md).

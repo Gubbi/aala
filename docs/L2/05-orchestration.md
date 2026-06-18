@@ -34,7 +34,7 @@ Snapshots are conceptual. Concrete realizations vary by implementation: a snapsh
 
 A **tree** is a bounded discourse identified by a `TreeId` (e.g., `planning`, `implementation`, `staging`). Trees are the unit at which same-claim atoms collapse — Duplicate detection runs within-tree; cross-tree similarity surfaces candidate equivalence edges instead.
 
-Orchestration owns the tree registry and exposes lifecycle operations: register a new tree (which triggers Atoms to initialize the standard library for that tree), rename, merge, split. Tree migrations are coarse operations (per [`docs/spec/12-edge-cases.md`](../spec/12-edge-cases.md)) and are serialized against all other tree mutations.
+Orchestration owns the tree registry and exposes lifecycle operations: register a new tree (which triggers Atoms to initialize the standard library for that tree), rename, merge, split. Tree migrations are coarse operations (per [`spec/12-edge-cases.md`](../../spec/12-edge-cases.md)) and are serialized against all other tree mutations.
 
 ## What it owns
 

@@ -220,7 +220,7 @@ stateDiagram-v2
 - `rejected` — proposal rejected; never made it to canonical (e.g., hard-block conflict outcome). Meta: rationale.
 - `removed` — generic removal; no further intent. Meta: rationale.
 
-Applying a removal outcome is a two-step process: the atom MUST first transition to the removal-outcome status and be committed as a **tombstone** (it remains with that status, carrying its `correlation_id`, rationale, and meta); it is never deleted directly. Physical deletion happens only via an optional, `system:`-correlated garbage-collection pass that emits `Purged` — giving every atom a clean, auditable lifecycle. See [07 — Atom Lifecycle](../spec/07-atom-lifecycle.md) § Garbage collection.
+Applying a removal outcome is a two-step process: the atom MUST first transition to the removal-outcome status and be committed as a **tombstone** (it remains with that status, carrying its `correlation_id`, rationale, and meta); it is never deleted directly. Physical deletion happens only via an optional, `system:`-correlated garbage-collection pass that emits `Purged` — giving every atom a clean, auditable lifecycle. See [07 — Atom Lifecycle](../../spec/07-atom-lifecycle.md) § Garbage collection.
 
 **Transition triggers (where each is invoked):**
 

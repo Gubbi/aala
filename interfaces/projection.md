@@ -27,7 +27,7 @@ A deployment runs **exactly one** profile. There is no `profile?` argument on an
 | [Blast Radius](./blast-radius.md) | MAY | Blast reports as readable impact narratives. |
 | [Hierarchical Navigation](./hierarchical-nav.md) | MAY | Axis trees as navigable outlines. |
 
-The facet is a **separate read surface** from a container's structured read API. The structured API answers precise graph queries (`get_by_id`, `traverse_relations`, …); the projection facet answers "give me readable prose I can ground an LLM on, and let me navigate it." See [`docs/analysis/agent-integration-pattern.md`](../analysis/agent-integration-pattern.md) for how an external agent uses the two together.
+The facet is a **separate read surface** from a container's structured read API. The structured API answers precise graph queries (`get_by_id`, `traverse_relations`, …); the projection facet answers "give me readable prose I can ground an LLM on, and let me navigate it." See [`docs/analysis/agent-integration-pattern.md`](../docs/analysis/agent-integration-pattern.md) for how an external agent uses the two together.
 
 ## Path type
 

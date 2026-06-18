@@ -12,7 +12,7 @@ Two implementations are wire-interoperable **only if** they share at least one s
 
 Every profile in the registry declares one **class**:
 
-- **`rpc`** — carries the **call surface**: method bindings, session establishment, streaming, and the error envelope. The interface contracts in [`docs/interfaces/`](../interfaces/) are discharged over `rpc`-class profiles.
+- **`rpc`** — carries the **call surface**: method bindings, session establishment, streaming, and the error envelope. The interface contracts in [`interfaces/`](../interfaces/) are discharged over `rpc`-class profiles.
 - **`persistence`** — binds the **at-rest representation** of snapshot state on a storage medium, so that independently built implementations can share one store or exchange snapshots. A persistence-class profile is not a call surface: it defines no method bindings, no in-band sessions, and no error envelope — errors are runtime artifacts of calls ([10 — Error Model](./10-error-model.md)), and calls ride an `rpc`-class profile.
 
 A conformant implementation supports at least one `rpc`-class profile and declares persistence-class profiles only in addition, never alone — the conformance statement is [02 § Wire profile declaration](./02-conformance.md#wire-profile-declaration). Call-level interop requires a shared `rpc`-class profile; implementations sharing only a persistence-class profile interoperate at the store level (each can read and continue the other's store) but not at the call level.
@@ -25,7 +25,7 @@ The caller-side selection rule is in [§ Profile declaration](#profile-declarati
 
 ## Profile-independent encoding
 
-Identifier formats (`AtomId`, `FragmentId`, `SnapshotId`, `Ref`, `IngestId`, `RequestId`, `SystemOpId`, `BlastId`, `TreeId`) are normative per [`docs/interfaces/00-shared-types.md`](../interfaces/00-shared-types.md) and MUST be preserved verbatim across every wire profile. The `correlation_id` on change events is one of these (an `IngestId`, `RequestId`, or `SystemOpId`) and is likewise preserved verbatim. No profile-specific escaping or transformation is permitted for identifiers — the character set (`[A-Za-z0-9_\-.:]`) is safe for JSON strings, YAML scalars, URL path segments, and MCP tool arguments.
+Identifier formats (`AtomId`, `FragmentId`, `SnapshotId`, `Ref`, `IngestId`, `RequestId`, `SystemOpId`, `BlastId`, `TreeId`) are normative per [`interfaces/00-shared-types.md`](../interfaces/00-shared-types.md) and MUST be preserved verbatim across every wire profile. The `correlation_id` on change events is one of these (an `IngestId`, `RequestId`, or `SystemOpId`) and is likewise preserved verbatim. No profile-specific escaping or transformation is permitted for identifiers — the character set (`[A-Za-z0-9_\-.:]`) is safe for JSON strings, YAML scalars, URL path segments, and MCP tool arguments.
 
 The identifier character set is **not** universally filesystem-safe: `:` is reserved in Windows filenames and historically problematic on other filesystems. No profile in this registry uses an identifier as a file or directory name; a profile that derives filesystem names binds its own derivation rule ([`aala-wire/yaml+git` § Repository layout](#repository-layout)).
 
@@ -189,7 +189,7 @@ A persistence-class profile is a store, not a call surface: an implementation se
 - **Performance characteristics.** Profiles bind correctness, not throughput / latency.
 - **Internal component organization.** Per the API-only access principle, internals are private.
 - **Specific LLM gateway tool choice.** Per [09 — LLM Gateway](./09-llm-gateway.md), tool selection is implementer-chosen and orthogonal to wire profile.
-- **Identifier opacity beyond the spec.** Identifiers are normative per [`docs/interfaces/00-shared-types.md`](../interfaces/00-shared-types.md) and travel verbatim across all profiles.
+- **Identifier opacity beyond the spec.** Identifiers are normative per [`interfaces/00-shared-types.md`](../interfaces/00-shared-types.md) and travel verbatim across all profiles.
 
 ## Conformance summary for cross-impl interop
 

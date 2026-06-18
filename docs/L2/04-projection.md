@@ -37,7 +37,7 @@ Read-only, filesystem/S3-like:
 - `read_index(root?)` — the hierarchical, titled, summarized navigation tree (PageIndex-style) an agent descends to find the few documents it needs.
 - `changes_since(ref)` — the facet's own change stream over rendered documents.
 
-There is no write method on the facet. Rendering is private to the implementing container, driven off its own content changes. Full contract: [`docs/interfaces/projection.md`](../interfaces/projection.md).
+There is no write method on the facet. Rendering is private to the implementing container, driven off its own content changes. Full contract: [`interfaces/projection.md`](../../interfaces/projection.md).
 
 ## What an implementer owns behind the facet
 

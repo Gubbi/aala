@@ -2,7 +2,7 @@
 
 Blast Radius is the impact-analysis pipeline: given a proposed transition of an atom, it produces a structured report listing the atoms whose status, validity, or content would be affected. It is the human-facing surface of the cascade machinery in [07 — Atom Lifecycle](./07-atom-lifecycle.md), exposed as a queryable analysis rather than an automatic state transition.
 
-The type shapes, method signatures, per-method **Errors** / **Access** / **Concurrency** declarations, and the event union live in [`docs/interfaces/blast-radius.md`](../interfaces/blast-radius.md) — the contract's normative home per [01 — Conventions § Normative ownership](./01-conventions.md#normative-ownership); idempotency contracts live in the registry in [`interfaces/00-shared-types.md § Idempotency`](../interfaces/00-shared-types.md#idempotency). This chapter owns the semantics: pipeline stages, the structural-equivalence invariant, iteration, report lifecycle, determinism, and retention.
+The type shapes, method signatures, per-method **Errors** / **Access** / **Concurrency** declarations, and the event union live in [`interfaces/blast-radius.md`](../interfaces/blast-radius.md) — the contract's normative home per [01 — Conventions § Normative ownership](./01-conventions.md#normative-ownership); idempotency contracts live in the registry in [`interfaces/00-shared-types.md § Idempotency`](../interfaces/00-shared-types.md#idempotency). This chapter owns the semantics: pipeline stages, the structural-equivalence invariant, iteration, report lifecycle, determinism, and retention.
 
 ## When it runs
 

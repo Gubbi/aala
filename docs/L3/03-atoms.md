@@ -86,7 +86,7 @@ sequenceDiagram
 
 ## Canonical data model
 
-The schema below is the conceptual data model. Specific implementations may serialize it differently (YAML, JSON, protobuf, …). The exact interface shape lives in [`docs/interfaces/00-shared-types.md`](../interfaces/00-shared-types.md).
+The schema below is the conceptual data model. Specific implementations may serialize it differently (YAML, JSON, protobuf, …). The exact interface shape lives in [`interfaces/00-shared-types.md`](../../interfaces/00-shared-types.md).
 
 ```mermaid
 classDiagram

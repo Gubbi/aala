@@ -8,9 +8,9 @@ aala deliberately ships no synthesis/generation container. Generation needs vary
 
 What aala provides:
 
-- **Projection facet** (per contentful container) — readable prose + a hierarchical, summarized navigation index. See [`docs/interfaces/projection.md`](../interfaces/projection.md).
-- **Structured read APIs** — precise graph queries: `traverse_relations`, `get_by_id`, `list_by_classification`, `list_by_tree`, `resolve_subject`, schema lookups. See [`docs/interfaces/atoms.md`](../interfaces/atoms.md).
-- **Optional capabilities** — [Hierarchical Navigation](../interfaces/hierarchical-nav.md) (axis trees) and [Blast Radius](../interfaces/blast-radius.md) (impact reports) when wired.
+- **Projection facet** (per contentful container) — readable prose + a hierarchical, summarized navigation index. See [`interfaces/projection.md`](../../interfaces/projection.md).
+- **Structured read APIs** — precise graph queries: `traverse_relations`, `get_by_id`, `list_by_classification`, `list_by_tree`, `resolve_subject`, schema lookups. See [`interfaces/atoms.md`](../../interfaces/atoms.md).
+- **Optional capabilities** — [Hierarchical Navigation](../../interfaces/hierarchical-nav.md) (axis trees) and [Blast Radius](../../interfaces/blast-radius.md) (impact reports) when wired.
 - **Provenance everywhere** — every projection document and every atom carries the IDs needed to cite back to source.
 
 ## The core pattern: prose-dump-first, then graph-query-refine
@@ -49,7 +49,7 @@ The same skeleton — *navigate index → read prose → graph-query → compose
 
 ## Grounding and faithfulness
 
-Because composition is caller-side, faithfulness checking is also primarily a caller concern: the agent should verify each asserted claim against the atoms it actually retrieved (provenance makes this mechanical). Deployments that want a managed faithfulness/quality signal can route through the [Quality](../interfaces/quality.md) capability's LLM-as-judge harness when wired; that is an evaluation surface, not a generation gate.
+Because composition is caller-side, faithfulness checking is also primarily a caller concern: the agent should verify each asserted claim against the atoms it actually retrieved (provenance makes this mechanical). Deployments that want a managed faithfulness/quality signal can route through the [Quality](../../interfaces/quality.md) capability's LLM-as-judge harness when wired; that is an evaluation surface, not a generation gate.
 
 ## What this replaces
 

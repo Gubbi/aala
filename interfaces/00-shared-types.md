@@ -1,6 +1,6 @@
 # Shared Types
 
-Types and conventions referenced from multiple container interfaces. Read this before the per-container files. The conceptual model is specified in [`docs/spec/03-data-model.md`](../spec/03-data-model.md); this file is the typed shape.
+Types and conventions referenced from multiple container interfaces. Read this before the per-container files. The conceptual model is specified in [`spec/03-data-model.md`](../spec/03-data-model.md); this file is the typed shape.
 
 Version: `aala-v0.1`.
 

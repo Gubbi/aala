@@ -19,10 +19,10 @@ A conformant implementation MUST realize every container the registry marks REQU
 [Projection](../interfaces/projection.md) is a cross-cutting **read facet**, not a container. A conformant implementation:
 
 - **MUST** implement the Projection facet on the [Atoms](../interfaces/atoms.md) container (canonical claim prose + glossary — the surface humans review).
-- **MAY** implement the Projection facet on other contentful containers (Ingestion, Blast Radius, Hierarchical Navigation). When implemented, the facet contract in [`docs/interfaces/projection.md`](../interfaces/projection.md) MUST be honored in full.
+- **MAY** implement the Projection facet on other contentful containers (Ingestion, Blast Radius, Hierarchical Navigation). When implemented, the facet contract in [`interfaces/projection.md`](../interfaces/projection.md) MUST be honored in full.
 - **MUST** materialize each implemented projection under **exactly one** configured output profile ([Appendix A § Projection output profiles](./appendix-a-registries.md#projection-output-profiles)). The default is `okf` ([Appendix B — OKF Profile](./appendix-b-okf-profile.md)); a deployment **MAY** substitute one custom profile satisfying the profile contract. The configured profile **MUST** be advertised as `projection_profile` in [`Orchestration.capabilities`](../interfaces/orchestration.md#capabilities). Changing the configured profile requires a full re-projection ([Projection § Notes for implementers](../interfaces/projection.md#notes-for-implementers)); no read method selects a profile per call.
 
-Generation and Q&A are **not** aala concerns and impose no conformance obligation: external agents compose answers and documents over aala's read surfaces (see [`docs/analysis/agent-integration-pattern.md`](../analysis/agent-integration-pattern.md)). When Quality is realized, externally composed prose can be submitted for **faithfulness verification** against the atom store ([`quality.md § verify_faithfulness`](../interfaces/quality.md#verify_faithfulness)) — a judgment service, not a generation surface.
+Generation and Q&A are **not** aala concerns and impose no conformance obligation: external agents compose answers and documents over aala's read surfaces (see [`docs/analysis/agent-integration-pattern.md`](../docs/analysis/agent-integration-pattern.md)). When Quality is realized, externally composed prose can be submitted for **faithfulness verification** against the atom store ([`quality.md § verify_faithfulness`](../interfaces/quality.md#verify_faithfulness)) — a judgment service, not a generation surface.
 
 ## Wire profile declaration
 
@@ -38,14 +38,14 @@ The declaration **MUST** be stable for the lifetime of the implementation proces
 
 For each realized container — and for each container exposing the Projection facet — the implementation:
 
-- **MUST** expose every method defined in the corresponding interface file under [`docs/interfaces/`](../interfaces/).
+- **MUST** expose every method defined in the corresponding interface file under [`interfaces/`](../interfaces/).
 - **MUST** honor every signature exactly: parameter types, return types, and the declared `(activity, end_state)` pairs.
 - **MUST** honor the declared idempotency rules.
 - **MUST** honor the declared concurrency model (serialized writes, concurrent-safe reads).
 - **MUST** enforce each method's declared **Access** operation type via the grant check in [§ Access control](#access-control).
 - **MUST** emit every event variant defined in the container's (or facet's) `changes_since` section.
 - **MUST** honor the encoding rules of every declared wire profile.
-- **MUST** honor the normative identifier formats in [`docs/interfaces/00-shared-types.md`](../interfaces/00-shared-types.md).
+- **MUST** honor the normative identifier formats in [`interfaces/00-shared-types.md`](../interfaces/00-shared-types.md).
 - **MAY** expose additional methods, additional fields, or additional event variants. Such extensions MUST NOT change the meaning of existing methods or events.
 - **MAY** expose additional registered LLM Gateway use-case keys beyond the standard set ([Appendix A § Use-case keys](./appendix-a-registries.md#use-case-keys); semantics in [09 — LLM Gateway](./09-llm-gateway.md)). All standard keys MUST be present.
 
@@ -110,7 +110,7 @@ Operation types are the Tier-1 **`OperationKind`** vocabulary, enumerated in [Ap
 
 ### The check
 
-Every interface method declares **exactly one** operation type in its **Access** line, alongside its **Errors** line in [`docs/interfaces/`](../interfaces/). On admission of every call, the implementation **MUST** verify:
+Every interface method declares **exactly one** operation type in its **Access** line, alongside its **Errors** line in [`interfaces/`](../interfaces/). On admission of every call, the implementation **MUST** verify:
 
 > (*subject snapshot*, the method's declared operation type) ∈ the session's grants
 

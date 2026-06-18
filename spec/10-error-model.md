@@ -2,7 +2,7 @@
 
 This chapter defines the binding error model: a three-tier error chain, the classification that drives caller behavior, the mandated observability emission, and the idempotency / atomicity / cross-container guarantees that surround failures.
 
-The shapes referenced here (`FixDomain`, `Recoverability`, `Severity`, `PrimitiveError`, `ActivityError`, `OperationError`, `Activity`, `OperationKind`) are defined in [`docs/interfaces/00-shared-types.md`](../interfaces/00-shared-types.md#errors--the-three-tier-model).
+The shapes referenced here (`FixDomain`, `Recoverability`, `Severity`, `PrimitiveError`, `ActivityError`, `OperationError`, `Activity`, `OperationKind`) are defined in [`interfaces/00-shared-types.md`](../interfaces/00-shared-types.md#errors--the-three-tier-model).
 
 ## The three-tier chain
 
@@ -103,7 +103,7 @@ The per-activity pairs — each with its registered `fix_domain` / `recoverabili
 Notes:
 
 - An absent optional capability surfaces as the universal `not_wired` — e.g. Blast Radius not deployed → `analyzing_impact` / `not_wired`; a benchmark never configured → `evaluating` / `not_wired`.
-- A method's **Errors** declaration in [`docs/interfaces/`](../interfaces/) lists the `(activity, end_state)` pairs it can raise — that list is the per-method contract.
+- A method's **Errors** declaration in [`interfaces/`](../interfaces/) lists the `(activity, end_state)` pairs it can raise — that list is the per-method contract.
 - **Session-binding failures are blanket pairs.** A write entry point invoked in a session bound to a non-`working` snapshot fails with `snapshotting` / `canonical_protected`; any call in a session whose bound snapshot has been discarded fails with `snapshotting` / `discarded` ([04 — Snapshots § Session binding](./04-snapshots.md#session-binding)). Like the universal end-states, these two pairs apply across the surface and are not repeated in per-method **Errors** declarations.
 - **Access-control failures are blanket pairs.** Any call can fail at the perimeter with `authorizing` / `unauthenticated` (no session established) or `authorizing` / `denied` (missing grant), per the check in [02 — Conformance § Access control](./02-conformance.md#access-control). Like the universal end-states, these two pairs apply across the surface and are not repeated in per-method **Errors** declarations; the per-method **Access** line declares the operation type the check uses.
 
