@@ -11,6 +11,8 @@
 
 Organizations decide faster than they can write things down. The *why* behind an architecture, the constraint someone raised in a meeting, the dependency that made a choice load-bearing — these live in Slack threads, transcripts, and PR comments, and they decay the moment the conversation scrolls away. Wikis go stale because prose has to be maintained by hand. Search returns documents, not answers. And when a decision changes, nobody can see everything it quietly invalidated.
 
+And LLMs have made *producing* documents nearly free, so teams now generate more of them than ever — specs, design docs, project plans, user journeys, task breakdowns — each a separate copy of the same underlying decisions. When one decision changes, finding every artifact that needs updating becomes guesswork. The more these sources drift apart, the less anyone trusts them — and the worse every LLM that reads them performs, because it's grounding on stale, contradictory copies.
+
 The knowledge exists. It's just never *compiled* into something you can query, trust, and keep current.
 
 ## What aala Does
@@ -19,15 +21,19 @@ aala treats every incoming fragment — a chat thread, a transcript, a PR discus
 
 ```
   chat threads ─┐
-  transcripts  ─┤      ┌─────────────┐      atoms ── the system of record
-  PR reviews   ─┼────► │    aala     │ ───► (typed claims + relationships)
-  design docs  ─┤      │  compiler   │             │
-  ad-hoc notes ─┘      └─────────────┘             ├─► prose  (review · LLM grounding · export)
-                                                   ├─► navigation & search
-                                                   └─► blast-radius impact analysis
+  transcripts  ─┤     ┌──────────┐     atoms ── the system of record
+  PR reviews   ─┼───► │   aala   │───► (typed claims + relationships)
+  design docs  ─┤     │ compiler │            │
+  ad-hoc notes ─┘     └──────────┘            ├─► prose projections ──┐
+                                              ├─► navigation & search ─┼─► your LLM ─► Q&A &
+                                              └─► blast-radius ────────┘              on-demand docs
+                                                                                      (ADRs, sequence
+                                                                                       diagrams, journeys)
 ```
 
 Because prose is **projected** from atoms on demand rather than authored, the documents can never drift from what's actually known. A conflict pipeline checks every new claim against what already exists — flagging duplicates, refinements, and contradictions. And when a decision changes, blast-radius analysis shows exactly which other claims are now in question.
+
+This flips the usual workflow. Instead of authoring documents and then maintaining them forever, you feed aala the raw conversations and decisions and let it compile them into one queryable repository — then generate the documents you actually need, **on demand**, with the LLM of your choice: an ADR here, a sequence diagram there, a user journey for a review. aala doesn't generate those documents itself; it supplies the grounded, current, contradiction-checked source your LLM composes them from. The artifacts become disposable views over a single source of truth, not parallel copies you have to keep in sync.
 
 ## What Makes aala Different
 
