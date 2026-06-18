@@ -21,6 +21,11 @@ specification {
       color sky
     }
   }
+  element facet {
+    style {
+      color indigo
+    }
+  }
 }
 
 model {
@@ -28,55 +33,47 @@ model {
   llm = externalSystem 'Cloud / Local LLM' 'Deployer-configured models — hosted (Anthropic / OpenAI / etc.) or local (Ollama / vLLM / etc.) — accessed via the deployer''s chosen gateway tool (LiteLLM / OpenRouter / Portkey / direct).'
   storage = externalSystem 'Snapshot Backing Store' 'Git working tree / database snapshots / content-addressed manifest (implementation choice)'
 
-  aala = system 'aala' 'Knowledge Compiler — atoms as System of Record, prose as projection' {
-    orchestration = container 'Orchestration' 'Lifecycle coordinator. Snapshot selection, capability routing, external API surface.'
-    ingestion = container 'Ingestion' 'Raw inputs in. Normalize, filter, persist raw fragments.'
-    atoms = container 'Atoms' 'Canonical SoR. Schema, CRUD, Extraction (C), Conflict detection, alias + reference primitives. Emits ordered delta stream.'
-    projection = container 'Projection' 'Render atoms into human-readable prose. Owns reverse index + cache.'
+  aala = system 'aala' 'Knowledge Compiler — atoms as System of Record, prose as a per-container projection facet; external agents compose answers over the read surfaces' {
+    orchestration = container 'Orchestration' 'Lifecycle coordinator. Snapshot lifecycle, tree registry, capability routing, external API surface.'
+    ingestion = container 'Ingestion' 'Raw inputs in. Normalize, filter, persist raw fragments. Tree-agnostic.'
+    atoms = container 'Atoms' 'Canonical SoR. Typed grammar (entity / relation / classification / predicate / predicate_kind). Schema, extraction, conflict classification, status transitions, three-channel cascade, classification + predicate resolution, alias graph, entailment. Emits ordered delta stream. Hosts the Projection facet over its claims.'
+    projection = facet 'Projection (facet)' 'Read facet, not a container. Each contentful container renders its own state to prose + a navigable index (list / read / read_index / changes_since). Canonical host: Atoms. Owns no canonical state of its own.'
 
-    hierarchical_nav = optionalContainer 'Hierarchical Navigation' 'Multi-axis labeled tree indexes over atoms (by-domain, by-team, by-lifecycle, by-tag). Optional.'
-    blast_radius = optionalContainer 'Blast Radius' 'Impact analysis for sweeping decisions. Owns blast reports + traversal indexes. Optional.'
-    synthesis = optionalContainer 'Synthesis' 'Q&A and dynamic document generation. Composes other capabilities + external sources. Optional.'
-    quality = optionalContainer 'Quality' 'Benchmarks, golden sets, faithfulness eval, LLM-as-judge, telemetry, failed-query archive. Optional.'
+    hierarchical_nav = optionalContainer 'Hierarchical Navigation' 'Multi-axis labeled tree indexes over atoms (by-classification, by-tree, by-team, by-lifecycle, by-tag). Optional.'
+    blast_radius = optionalContainer 'Blast Radius' 'Impact analysis for transitions. Read-only pipeline over the three cascade channels (predicate-kind, scope-premise, derivation invalidation). Owns blast reports + traversal indexes. Optional.'
+    quality = optionalContainer 'Quality' 'Benchmarks, golden sets, faithfulness eval, LLM-as-judge, conflict-pipeline test runner, telemetry, failed-query archive. Optional.'
 
-    llm_gateway = crossCutting 'LLM Gateway' 'Cross-cutting infrastructure. Use-case-keyed model access. Implementer picks the tool; deployer configures models.'
+    llm_gateway = crossCutting 'LLM Gateway' 'Cross-cutting infrastructure (non-optional). Use-case-keyed model access. Implementer picks the tool; deployer configures models.'
   }
 
-  agent -> aala.orchestration 'ingest / query / approve' 'MCP / HTTP / CLI'
+  agent -> aala.orchestration 'ingest / read / propose / approve' 'MCP / HTTP / CLI'
 
   aala.orchestration -> aala.ingestion 'accept(fragment)'
   aala.orchestration -> aala.atoms 'propose / read / update_status'
-  aala.orchestration -> aala.synthesis 'route queries'
-  aala.orchestration -> aala.blast_radius 'analyze on decision (if wired)'
+  aala.orchestration -> aala.projection 'read prose + navigable index'
+  aala.orchestration -> aala.blast_radius 'analyze / record_resolution (if wired)'
   aala.orchestration -> storage 'snapshot ops'
 
   aala.ingestion -> aala.atoms 'normalized fragment for extraction'
   aala.ingestion -> storage 'append raw fragment'
   aala.ingestion -> aala.llm_gateway 'relevance filter (if LLM-based)'
 
-  aala.atoms -> aala.llm_gateway 'extraction + conflict judge'
+  aala.atoms -> aala.llm_gateway 'extraction + conflict judge + classification/predicate suggest'
   aala.atoms -> storage 'write atoms to current snapshot'
 
   aala.hierarchical_nav -> aala.atoms 'changes_since(ref) — consume delta stream'
   aala.hierarchical_nav -> aala.llm_gateway 'label synthesis'
   aala.hierarchical_nav -> storage 'persist tree indexes (impl-choice)'
 
-  aala.projection -> aala.atoms 'changes_since(ref) — consume delta stream'
+  aala.atoms -> aala.projection 'renders own claims via facet'
   aala.projection -> aala.llm_gateway 'narrative render'
   aala.projection -> storage 'write prose to current snapshot'
 
-  aala.blast_radius -> aala.atoms 'changes_since(ref) + update_status'
+  aala.blast_radius -> aala.atoms 'traverse_relations + Scope.constraint_atoms + derivation reverse-index + update_status'
   aala.blast_radius -> aala.llm_gateway 'implicit pass'
   aala.blast_radius -> storage 'persist blast reports in snapshot'
 
-  aala.synthesis -> aala.atoms 'read atoms (traverse_references, get_by_id, list_scope)'
-  aala.synthesis -> aala.hierarchical_nav 'navigate (soft dep; falls back to direct Atoms reads)'
-  aala.synthesis -> aala.blast_radius 'read reports (soft dep)'
-  aala.synthesis -> aala.projection 'read aligned prose (soft dep)'
-  aala.synthesis -> aala.llm_gateway 'synthesis + faithfulness'
-
-  aala.quality -> aala.atoms 'read for retrieval eval'
-  aala.quality -> aala.synthesis 'run golden-set queries'
+  aala.quality -> aala.atoms 'read for retrieval eval; planted conflict cases via propose'
   aala.quality -> aala.projection 'check rendered output'
   aala.quality -> aala.llm_gateway 'LLM-as-judge'
 

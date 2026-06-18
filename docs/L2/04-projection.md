@@ -1,70 +1,85 @@
-# Projection — Atoms Rendered as Prose
+# Projection — The Prose Facet of Contentful Containers
 
-**Status: non-optional** for any deployment where humans review the system's output. Atoms are the record; projections are the surface humans read.
+**Kind: cross-cutting read facet (not a container).** **Required of [Atoms](./03-atoms.md); optional for other contentful containers.**
 
 ## Concern
 
-Projection turns the structured atom set into a structured prose set. It owns the rendered files, the indexes that map atoms to the sections they appear in, the cache that keeps rendering deterministic, and the rendering pipeline that combines template and LLM output.
+Projection is the uniform, read-only surface through which a contentful container exposes a human- and LLM-readable **prose rendering** of its own state, plus a hierarchical index for navigating it. Atoms are the record; projections are the surface humans (and external agents) read.
 
-In one sentence: **Projection produces the human-readable view of the canonical atom state, scoped to what changed.**
+It is deliberately **a facet, not a service**. aala does not centralize rendering into a Projection container that reaches into other containers' state — that would split one concern across the content owner and a separate renderer. Instead, each contentful container renders its *own* content, exactly as each container already owns its own read API and change stream. The coherence a single "Projection service" would offer comes instead from a shared interface contract that every implementer honors, plus the active wire profile's uniform access and access-control rules.
 
-## What it owns
+In one sentence: **each contentful container renders its own state to navigable prose through a common facet; there is no separate service that owns the rendered view.**
+
+## Who implements it
+
+| Container | Obligation | What it projects |
+|---|---|---|
+| [Atoms](./03-atoms.md) | **required** | Canonical claim prose + glossary — the surface humans review. |
+| [Ingestion](./02-ingestion.md) | optional | Normalized raw fragments as readable source documents. |
+| [Blast Radius](./07-blast-radius.md) | optional | Blast reports as readable impact narratives. |
+| [Hierarchical Navigation](./06-hierarchical-nav.md) | optional | Axis trees as navigable outlines. |
+
+## Two read surfaces, one container
+
+A contentful container exposes two complementary read surfaces:
+
+- **Structured read API** — precise graph queries (`traverse_relations`, `get_by_id`, `list_by_classification`, …). Exact, machine-shaped.
+- **Projection facet** — readable prose + a navigable index. LLM-shaped.
+
+These serve different consumers. An external agent answering a question grounds first on prose (LLMs reason better over prose than over raw record dumps), then drops to the structured API for precise follow-ups. See [`docs/analysis/agent-integration-pattern.md`](../analysis/agent-integration-pattern.md).
+
+## The facet surface (conceptual)
+
+Read-only, filesystem/S3-like:
+
+- `list(prefix?)` — enumerate available projection paths.
+- `read(path)` — fetch one rendered markdown document with its provenance (the atoms it was rendered from).
+- `read_index(root?)` — the hierarchical, titled, summarized navigation tree (PageIndex-style) an agent descends to find the few documents it needs.
+- `changes_since(ref)` — the facet's own change stream over rendered documents.
+
+There is no write method on the facet. Rendering is private to the implementing container, driven off its own content changes. Full contract: [`docs/interfaces/projection.md`](../interfaces/projection.md).
+
+## What an implementer owns behind the facet
 
 | Concern | Notes |
 |---|---|
-| Projection files | Rendered markdown, one per entity / scope (e.g., `domains/payments/services/checkout.md`, `glossary.md`, `cross-cutting/security.md`). Stored in the current snapshot alongside atoms. |
-| Claim-to-section reverse index | For each atom, which projection files + section IDs it appears in. Lets a re-render scope to "only the sections atom X touches" instead of regenerating everything. |
-| Render cache | Hash of `(atom_set + prompt_version + model_version)` → rendered prose. Same inputs always produce the same output. |
-| Rendering pipeline | The composition of template renderer (deterministic, no LLM, for structural content) + narrative renderer (LLM, for connective prose) + previous-prose anchor (to minimize gratuitous rephrasing on re-render). |
+| Rendered documents | Markdown, one per entity / scope (e.g., `domains/payments/services/checkout.md`). Stored in the current snapshot alongside the source content. |
+| Navigation index | The hierarchical, summarized tree served by `read_index`. Lets a large base be consumed without dumping every record. |
+| Glossary (Atoms only) | A-to-Z entries from ClassificationAtoms (concept entries), EntityAtoms classified under named-individual classifications (Person, Organization, Place, Time, Concept), and PredicateAtoms. Maintained per tree. |
+| Content-to-section reverse index | For each unit of content (e.g., each atom), which documents + section IDs it appears in. Scopes a re-render to "only the sections this content touches." |
+| Render cache | Hash of `(content_set + prompt_version + model_version)` → rendered prose. Same inputs always produce the same output. |
+| Rendering pipeline | Template renderer (deterministic, no LLM, structural content) + narrative renderer (LLM, connective prose) + previous-prose anchor (minimize gratuitous rephrasing on re-render). |
+
+By default, derived atoms do not drive rendered documents — projections reflect asserted claims. Implementations MAY surface derived inferences in diagnostic projections under an explicit opt-in.
 
 ## Why determinism matters
 
-Without deterministic rendering, an unchanged section would re-render to slightly different prose every time, making diffs unreadable and obscuring real changes. The cache eliminates noise for unchanged sections; the anchor minimizes it for sections that *did* change. Both are part of the container's core contract, not optimizations.
-
-## API surface (conceptual)
-
-**Write (against the currently selected snapshot):**
-- `re_render(scope?) → changes_summary` — produce or update projection files for the affected sections of the current snapshot. With no scope, re-renders everything implied by atoms that changed since the last render. Returns a summary of which projection files changed and which atoms drove the changes.
-
-**Read:**
-- `get(projection_path)` — fetch a projection file from the current snapshot.
-- `affected_sections(atom_ids)` — which projection files + section IDs would change if these atoms changed. Lets callers preview the render scope without doing the work.
-- `changes_since(ref)` — what changed in projections since the marker. The container's own change stream.
-
-Projection writes to the currently selected snapshot, same as Atoms. Snapshot selection is owned by [Orchestration](./05-orchestration.md).
+Without deterministic rendering, an unchanged document would re-render to slightly different prose every time, making diffs unreadable and obscuring real changes. The cache eliminates noise for unchanged documents; the anchor minimizes it for documents that *did* change. Both are part of the facet's contract, not optimizations.
 
 ## Dependencies
 
-- **[Atoms](./03-atoms.md)** — read API for the atoms that drive rendering.
-- **[LLM Gateway](./09-llm-gateway.md)** — for narrative rendering. Optional internally: a template-only configuration skips the LLM path and still produces a valid (less fluent) projection.
-- No dependencies on optional containers.
+- The implementing container's own state (Atoms's atoms, Ingestion's fragments, …) — read internally.
+- **[LLM Gateway](./09-llm-gateway.md)** — for narrative rendering (`aala.projection_narrative`). Optional internally: a template-only configuration skips the LLM path and still produces a valid (less fluent) document.
 
 ## Components (preview of L3)
 
-- **Section Scoper** — uses the reverse index to determine which projection files / sections are affected by a given atom set.
-- **Template Renderer** — pure function; deterministically renders structural content (tables, fact lists, schema-derived sections). No LLM.
-- **Narrative Renderer** — LLM-driven; renders connective prose between structural sections. Uses the anchor.
-- **Previous-Prose Anchor** — passes the previous rendering of the section to the narrative renderer with a "preserve unchanged wording" instruction.
-- **Cache Manager** — looks up by hash; on hit, returns cached prose; on miss, drives the renderers and caches the result.
-- **Section Assembler** — stitches template + narrative output into a final markdown section.
-- **Reverse Index Maintainer** — updates the claim-to-section index as projections are written.
-- **Change Annotator** — records which atoms triggered which section re-renders (consumed by clients that want to surface "what changed and why").
-- **Change Log** — maintains the ordered, append-only event log for this container. Receives notifications from Markdown Writer (`SectionChanged` / `SectionAdded` / `SectionDeleted`) and from Reverse Index Maintainer (`IndexUpdated`). Serves `changes_since(ref)` and manages the ref / checkpoint surface that downstream consumers track against.
+The reference rendering pipeline a contentful container embeds: Section Scoper, Template Renderer, Narrative Renderer, Previous-Prose Anchor, Cache Manager, Section Assembler, Reverse Index Maintainer, Glossary Builder (Atoms), Index Builder, Change Annotator, Change Log. Full L3 detail lives in [`docs/L3/04-projection.md`](../L3/04-projection.md).
 
-Full L3 detail lives in `docs/L3/04-projection.md` (TBD).
-
-## Variation points (where impls differ)
+## Variation points (where implementations differ)
 
 | Variation | Examples |
 |---|---|
 | Rendering mode | Template-only (no LLM, fastest, least fluent) → template + cached LLM narrative (default) → streaming projection (incremental output for live capture). |
-| Projection schema | One file per entity / service / decision (fine-grained, many small files); one file per scope (coarse-grained, fewer files); one large generated document (single-file deployments). |
+| Projection schema | One document per entity / service / decision (fine-grained); one per scope (coarse); one large generated document (single-file deployments). |
+| Index granularity | Flat list; per-scope outline; deep PageIndex-style tree with per-node summaries. |
 | Cache backend | In-memory only; file-backed; external KV store. |
-| Anchor strategy | Always anchor on the previous rendering; anchor only on high-confidence stable sections; never anchor (every re-render is fresh). |
-| Glossary as a projection | The alphabetical glossary page is one of Projection's outputs — atoms of type `definition` rendered as A→Z entries with cross-references to aliases and see-also relationships. Not a separate container. |
+| Anchor strategy | Always anchor on previous rendering; anchor only stable sections; never anchor. |
+| Glossary placement (Atoms) | One glossary document per tree; one combined cross-tree glossary; embedded into a per-domain index page. |
+| Facet adoption | Atoms only (smallest conformant set); Atoms + Blast Radius; all contentful containers. |
 
 ## What Projection does NOT do
 
-- It does not navigate atoms by query intent — that's [Synthesis](./08-synthesis.md) composing Atoms reads with the LLM.
-- It does not maintain a tree for human exploration — that's [Hierarchical Navigation](./06-hierarchical-nav.md).
-- It does not decide what is canonical — it only renders what Atoms says is canonical at the selected snapshot.
+- It is not a container and owns no canonical state — every projection is derived from a content owner's state.
+- It does not navigate content by query *intent* and compose answers — that is the external agent's job (see [`docs/analysis/agent-integration-pattern.md`](../analysis/agent-integration-pattern.md)).
+- It does not maintain a tree for axis-based human exploration — that's [Hierarchical Navigation](./06-hierarchical-nav.md).
+- It does not decide what is canonical — it only renders what the content owner says is canonical at the selected snapshot.

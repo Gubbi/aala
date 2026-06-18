@@ -49,7 +49,7 @@ The principle: working tree is the source of truth; everything in `~/.aala/cache
 1. **External AI agent** (Claude Code, etc.) reads raw input files in their original formats (Slack export, meeting transcript, doc, etc.).
 2. The agent **normalizes** each fragment to the standard `NormalizedFragment` shape (message_id, sender, recipients, payload, timestamp, content_kind, extras).
 3. The agent calls the **MCP server's ingest tool** with the normalized content.
-4. The MCP server routes through Ingestion → Atoms → (Blast Radius if a decision atom is identified) → Projection.
+4. The MCP server routes through Ingestion → Atoms → (Blast Radius if a decision atom is identified). Atoms' projection facet re-renders the affected canonical prose as part of the write.
 5. Returns stats: atoms added, conflict counts, unresolved questions, blast reports if any.
 
 The agent does the per-source format adapting (which would otherwise be Ingestion's pluggable Source Adapters in the global L2). In this impl, the Source Adapter is "an external AI agent following the NormalizedFragment contract."
@@ -82,13 +82,11 @@ This sidesteps building a Live Participant UI / Review UI entirely. Real-time st
 | Container | Wired? | Notes |
 |---|---|---|
 | Ingestion | yes | Single "agent-driven" source adapter. No webhooks, no STT. |
-| Atoms | yes | Storage = YAML files in git. Conflict pipeline: deterministic + embedding NN + LLM judge. Embedding index in SQLite. |
-| Projection | yes | Template + cached LLM narrative. Cache in SQLite. |
+| Atoms | yes | Storage = YAML files in git. Conflict pipeline: deterministic + embedding NN + LLM judge. Embedding index in SQLite. Implements the projection facet over its claims (template + cached LLM narrative; cache in SQLite) — canonical claim prose, glossary, and index. |
 | Orchestration | yes | MCP server is the External API Surface. Snapshot Manager = "current working tree" detector. |
 | LLM Gateway | yes | Wraps LiteLLM (probable choice; deployer configures models). |
 | Hierarchical Navigation | likely yes | Trees stored as JSON sidecar files in the cache dir. by-domain + by-team + by-glossary axes. |
 | Blast Radius | yes | Direct refs + premise tags + LLM-implicit. Important for the use case. |
-| Synthesis | yes (limited) | Q&A and ADR generation generators. Sequence-diagram and walkthrough generators deferred. |
 | Quality | not in v1 | Golden sets and benchmarks deferred. Add when we have enough usage to want to measure. |
 
 ## LLM Gateway choice
@@ -101,7 +99,6 @@ This sidesteps building a Live Participant UI / Review UI entirely. Real-time st
   - `aala.blast_implicit` → top-tier cloud (cost driver but high value)
   - `aala.projection_narrative` → mid-tier cloud, cached
   - `aala.label_synthesis` → mid-tier cloud
-  - `aala.synthesis` → top-tier cloud
   - `aala.faithfulness_judge` → top-tier cloud
   - `aala.relevance_filter` → small local (or cheap cloud)
   - `aala.embedding_default` → cloud embedding model
@@ -116,13 +113,17 @@ aala.ingest(normalized_fragment) → ingest_summary
 aala.get_unresolved(scope?) → [unresolved_item]
 aala.get_blast_report(blast_id?) → blast_report
 aala.record_resolution(blast_id, atom_id, resolution, rationale) → updated_report
-aala.query(intent, hints?) → response_with_provenance
+aala.list(prefix?) → [path]                      # projection facet: enumerate prose
+aala.read(path) → { content, provenance }        # projection facet: fetch prose + provenance
+aala.read_index(root?) → page_index              # projection facet: navigable index tree
 aala.refresh() → cache_status   # explicit re-baseline; usually not needed
 aala.capabilities() → [capability]
 aala.stats(scope?) → stats_summary
 ```
 
 The agent calls these. The agent decides what to show the user when — pagination, drill-downs, summaries.
+
+Q&A and document generation (ADRs, pitches, comparisons, walkthroughs) are NOT aala tools. The **local agent itself** answers questions and composes documents by consuming aala's read surfaces — Atoms' structured reads (graph queries by scope / classification / relation) plus the projection facet (`read_index` to navigate, `read` to fetch canonical prose with provenance) — and composing the answer with its own LLM. See [`docs/analysis/agent-integration-pattern.md`](../../analysis/agent-integration-pattern.md).
 
 ## Deviations from the spec (and where we lean on optional contracts)
 

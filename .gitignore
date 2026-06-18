@@ -4,3 +4,7 @@ node_modules/
 
 # Rust
 /target
+
+# Internal working artifacts (kept local, not published)
+docs/review-results/
+docs/analysis/spec-remediation-plan.md

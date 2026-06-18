@@ -6,7 +6,7 @@ The flows assume the full container set is wired. Each capability-container call
 
 ## Write path — ingest to canonical snapshot
 
-A normalized fragment arrives via [Orchestration](./05-orchestration.md). Ingestion persists it; [Atoms](./03-atoms.md) extracts, classifies, and applies changes to the snapshot — emitting an ordered delta stream as it goes. Downstream consumers ([Hierarchical Navigation](./06-hierarchical-nav.md), [Projection](./04-projection.md), [Blast Radius](./07-blast-radius.md)) read that stream and update their derived state in parallel. Orchestration waits for consumers to catch up before returning. The human reviews the snapshot diff and publishes it as canonical via whatever lifecycle the deployment supports.
+A normalized fragment arrives via [Orchestration](./05-orchestration.md). Ingestion persists it; [Atoms](./03-atoms.md) extracts, classifies, applies the conflict pipeline, mutates the snapshot, and runs the three-channel cascade fixpoint — emitting an ordered delta stream as it goes. Downstream consumers ([Hierarchical Navigation](./06-hierarchical-nav.md), [Blast Radius](./07-blast-radius.md)) read that stream and update their derived state in parallel, while Atoms re-derives its own [projection facet](./04-projection.md) (canonical claim prose + glossary) for affected sections. Orchestration waits for consumers to catch up before returning. The human reviews the snapshot diff and publishes it as canonical via whatever lifecycle the deployment supports.
 
 ```mermaid
 sequenceDiagram
@@ -16,103 +16,110 @@ sequenceDiagram
     participant Ing as Ingestion
     participant Atoms as Atoms
     participant Nav as Hierarchical Nav (opt)
-    participant Proj as Projection
     participant Blast as Blast Radius (opt)
     participant LLM as LLM Gateway
 
-    Agent->>Orch: ingest(normalized_fragment)
+    Agent->>Orch: ingest(fragment, options?)
     Orch->>Ing: accept(fragment)
     Ing->>Ing: relevance filter
     Ing-->>Orch: fragment_id (accepted? yes/no)
-    Orch->>Atoms: propose(fragment)
-    Atoms->>LLM: extract + classify (aala.extraction, aala.conflict_judge)
-    LLM-->>Atoms: atoms + classifications
-    Atoms->>Atoms: write to current snapshot + cascade Hanging via direct refs
-    Note over Atoms: Atoms emits ordered delta stream:<br/>Added / Updated / StatusChanged / Deleted
-    Atoms-->>Orch: ingest_id, classification summary
+    Orch->>Atoms: propose(fragment, hints with tree)
+    Atoms->>LLM: extract (aala.extraction), classify (aala.classification_suggest, aala.predicate_suggest)
+    LLM-->>Atoms: atoms + classifications + predicate refs
+    Atoms->>LLM: judge ambiguous conflicts (aala.conflict_judge)
+    LLM-->>Atoms: outcomes + resolution mode
+    Atoms->>Atoms: structural validation → alias resolution → schema validation → duplicate/similarity → edge-specific checks → equivalence coherence → capacity/promotion → cross-tree advisory
+    Atoms->>Atoms: write to snapshot + run cascade fixpoint (predicate-kind, scope-premise, derivation invalidation)
+    Atoms->>Atoms: compute T1 + T2 derivations (T3 produces conflict outcomes)
+    Note over Atoms: Atoms emits ordered delta stream:<br/>Added / DerivedAdded / Updated / StatusChanged /<br/>Superseded / Duplicate / Rejected / Removed /<br/>DerivedInvalidated / ConflictOutcomeEmitted / etc.
+    Atoms->>LLM: narrative render affected sections via projection facet (aala.projection_narrative)
+    LLM-->>Atoms: prose
+    Atoms->>Atoms: write projected claim prose to snapshot; update glossary
+    Atoms-->>Orch: ingest_id, ProposeResult (added, derived_added, outcomes, cascaded)
 
     par consumers self-update from Atoms delta stream
         Nav->>Atoms: changes_since(nav_ref)
         Atoms-->>Nav: ordered deltas
         Nav->>Nav: apply deltas to axis indexes incrementally
     and
-        Proj->>Atoms: changes_since(proj_ref)
-        Atoms-->>Proj: ordered deltas
-        Proj->>LLM: narrative render affected sections (aala.projection_narrative)
-        LLM-->>Proj: prose
-        Proj->>Proj: write prose to current snapshot
-    and
         Blast->>Atoms: changes_since(blast_ref)
         Atoms-->>Blast: ordered deltas
-        opt decision-type Added event
+        opt high-impact transition detected
+            Blast->>Blast: analyze(atom_id)
             Blast->>LLM: implicit pass (aala.blast_implicit)
-            LLM-->>Blast: candidate set
-            Blast->>Atoms: update_status on affected atoms
-            Blast->>Blast: persist blast report in snapshot
+            LLM-->>Blast: refined impact set
+            Blast->>Blast: persist report
         end
     end
 
     Orch->>Orch: wait for consumers to reach current ref
-    Orch-->>Agent: ingest_id, full summary (atoms, blast, projection)
+    Orch-->>Agent: ingest_id, full summary (atoms, blast, projected sections)
 ```
 
 **Key behaviors:**
 
-- **Atoms applies changes to the current snapshot atomically.** Extraction, conflict classification, and direct-reference Hanging cascade all land in one snapshot transition.
-- **Atoms emits an ordered delta stream.** Downstream consumers (Hierarchical Nav, Projection, Blast Radius) self-subscribe and apply deltas incrementally — Orchestration does not push-notify each one. See [`01-principles.md`](./01-principles.md) for the principle.
+- **Atoms applies changes to the current snapshot atomically.** Extraction, conflict classification, status manager mutations, and the three-channel cascade fixpoint all land in one snapshot transition.
+- **Conflict outcomes are first-class results, not errors.** The `ProposeResult` enumerates them with their `mode` (auto-resolve / soft-prompt / hard-block) and `resolution_paths`. Hard-block outcomes prevent the atom from being added; soft-prompt outcomes leave the atom in the snapshot awaiting review.
+- **Atoms emits an ordered delta stream.** Downstream consumers self-subscribe and apply deltas incrementally. Causality ordering ensures `Added(A)` precedes any event referencing `A`; `DerivedAdded(D)` follows `Added(S)` for every `S` in `D.derivation.from`.
 - **Consumers run in parallel.** Each tracks its own checkpoint `ref`; none depends on the others.
 - **Orchestration waits for catch-up** before returning to the agent, so the agent's response reflects a consistent post-ingest view.
 - **Publishing the snapshot as canonical** happens outside this flow. In deployments where the user owns git, it's a `git commit`. In other deployments, it's an explicit `Orchestration.publish_as_canonical` call.
 
-## Read path — query to synthesized answer
+## Read path — external agent composes over aala's read surfaces
 
-A query intent arrives via Orchestration; [Synthesis](./08-synthesis.md) (if wired) picks a generator and composes available capabilities into a response with provenance.
+Answering questions and generating documents are **not** aala concerns. An external agent reads aala's surfaces through Orchestration and composes the answer itself: it navigates the [projection facet](./04-projection.md) index and fetches prose to ground its understanding, then issues structured [Atoms](./03-atoms.md) reads for precision and provenance. See [`docs/analysis/agent-integration-pattern.md`](../analysis/agent-integration-pattern.md) for the recommended pattern.
 
 ```mermaid
 sequenceDiagram
     autonumber
     participant Agent as External AI Agent
     participant Orch as Orchestration
-    participant Synth as Synthesis (opt)
     participant Nav as Hierarchical Nav (opt)
     participant Atoms
     participant Blast as Blast Radius (opt)
-    participant Proj as Projection
     participant LLM as LLM Gateway
 
-    Agent->>Orch: query(intent, hints?)
-    Orch->>Synth: query(intent, generator?)
-    Synth->>LLM: classify intent / pick generator (aala.synthesis)
-    LLM-->>Synth: generator selection
+    Note over Agent: Agent owns intent classification, retrieval strategy,<br/>drafting, and any faithfulness gating — using its own LLM
+
+    Agent->>Orch: read_index(root?) via projection facet (ground / orient)
+    Orch->>Atoms: read_index over its projected prose
+    Atoms-->>Orch: hierarchical PageIndex-style nav tree
+    Orch-->>Agent: nav tree
+    Agent->>Orch: read(path) via projection facet (fetch grounding prose)
+    Orch->>Atoms: read(path)
+    Atoms-->>Orch: { content, provenance }
+    Orch-->>Agent: { content, provenance }
+
     opt Hierarchical Nav present
-        Synth->>Nav: navigate(axis, path)
+        Agent->>Orch: navigate(axis, path)
+        Orch->>Nav: navigate(axis, path)
         Nav->>Atoms: read atoms at scope
-        Nav-->>Synth: candidate atoms + navigation path
+        Nav-->>Orch: candidate atoms + navigation path
+        Orch-->>Agent: candidate atoms + navigation path
     end
-    opt Blast Radius present, impact-related intent
-        Synth->>Blast: get_report(blast_id) / unresolved
-        Blast-->>Synth: report excerpt
+    Agent->>Orch: structured Atoms reads (traverse_relations, list_by_classification)
+    Orch->>Atoms: traverse_relations / list_by_classification (optional include_derived)
+    Atoms-->>Orch: atoms + derived + provenance
+    Orch-->>Agent: atoms + derived + provenance
+    opt Blast Radius present, impact-related question
+        Agent->>Orch: get_report(blast_id) / unresolved
+        Orch->>Blast: get_report(...)
+        Blast-->>Orch: report excerpt
+        Orch-->>Agent: report excerpt
     end
-    Synth->>Atoms: read referenced atoms (via traverse_references)
-    Synth->>Proj: read aligned prose (for style anchoring)
-    Synth->>LLM: synthesize response (aala.synthesis)
-    LLM-->>Synth: draft response
-    Synth->>LLM: faithfulness check (aala.faithfulness_judge)
-    LLM-->>Synth: verdict
-    Synth-->>Orch: response + provenance + capability list consulted
-    Orch-->>Agent: response
+    Agent->>Agent: compose answer / document from retrieved content + provenance
 ```
 
 **Key behaviors:**
 
-- **Without Synthesis**, Orchestration falls back to direct Atoms reads (`get_by_id`, `traverse_references`, `list_scope`). The agent does its own composing.
-- **Without Hierarchical Nav**, Synthesis uses brute-force atom traversal — slower, lower-precision retrieval, but functional.
-- **Provenance is always returned** alongside the response: atoms cited, navigation path used, which capabilities were consulted.
-- **Faithfulness is a configurable gate** inside Synthesis; modes range from off (no check) to block (fail the request on confabulation).
+- **The agent composes, not aala.** Orchestration routes reads (projection-facet `read_index` / `read` / `list` and structured Atoms reads); the agent does its own retrieval strategy, drafting, and faithfulness gating using its own LLM.
+- **Projection grounds; Atoms gives precision.** The agent navigates the projection-facet index and reads prose to orient, then issues structured Atoms reads (`get_by_id`, `traverse_relations`, `list_by_classification`, `list_scope`) for exact claims and provenance.
+- **Without Hierarchical Nav**, the agent falls back to brute-force atom traversal — slower, lower-precision retrieval, but functional.
+- **Provenance travels with every read.** Projection `read` returns `{ content, provenance }`; structured Atoms reads return the cited atoms and any surfaced derived atoms — the agent attributes its answer from these.
 
-## Blast radius path — sweeping decision
+## Blast radius path — sweeping transition
 
-When a decision atom invalidates a premise that other atoms depended on, the impact analysis loop runs to identify the affected set and tracks resolution as humans work through it.
+When a transition has broad downstream impact, the analysis loop runs to identify the impact set and tracks resolution as humans work through it.
 
 ```mermaid
 sequenceDiagram
@@ -124,25 +131,27 @@ sequenceDiagram
     participant LLM as LLM Gateway
     participant Human
 
-    Note over Agent,Orch: Decision atom arrives via the write path
-    Atoms->>Atoms: classify as Supersedes / Refines
-    Atoms->>Atoms: cascade Hanging via direct refs (no Blast needed)
-    Orch->>Blast: analyze(decision_atom_id) (if wired)
-    Blast->>Atoms: read direct refs of changed atom
-    Blast->>Atoms: traverse atoms with the changed premise tag
-    Blast->>Blast: identify candidate subtree
-    Blast->>LLM: implicit pass on candidates (aala.blast_implicit)
-    LLM-->>Blast: refined candidate set
-    Blast->>Blast: categorize (direct / premise / implicit)
-    Blast->>Atoms: flip affected atoms to Hanging (update_status)
+    Note over Agent,Orch: A high-impact transition is proposed or applied
+    Atoms->>Atoms: classify (Refines / Supersedes / etc.)
+    Atoms->>Atoms: cascade via three channels (predicate-kind, scope-premise, derivation invalidation)
+    Orch->>Blast: analyze(input with atom_id, hypothetical?)
+    Blast->>Atoms: traverse_relations (kind-filtered: dependency, composition)
+    Blast->>Atoms: walk Scope.constraint_atoms reverse index
+    Blast->>Atoms: walk derivation.from reverse index
+    Blast->>Atoms: expand via kind=equivalence (cross-tree)
+    Blast->>Blast: iterate to fixpoint
+    Blast->>LLM: implicit pass on candidate set (aala.blast_implicit)
+    LLM-->>Blast: refined impact set
+    Blast->>Blast: assemble BlastReport (impacts, derived_loss, iterations)
     Blast-->>Orch: blast_id, report
 
-    loop while affected atoms still unresolved
-        Agent->>Human: present unresolved atoms + suggested actions
-        Human->>Agent: resolution decision (Keep / Adapt / Deprecate / Remove / Defer)
+    loop while impacts still unresolved
+        Agent->>Human: present unresolved impacts + suggested resolutions
+        Human->>Agent: resolution decision (status to assign)
         Agent->>Orch: record_resolution(blast_id, atom_id, resolution)
         Orch->>Blast: record_resolution(...)
-        Blast->>Atoms: update_status / propose (for Adapt) / delete (for Remove)
+        Blast->>Atoms: update_status(atom_id, resolution, rationale)
+        Atoms->>Atoms: cascade fixpoint for the new transition
         opt iterative refinement enabled
             Blast->>LLM: re-run implicit pass with new signal
             LLM-->>Blast: refined remaining set
@@ -150,86 +159,86 @@ sequenceDiagram
         Blast-->>Orch: updated report
     end
 
-    Note over Blast: Report closes when all affected atoms resolved
+    Note over Blast: Report closes when all impacted atoms resolved
 ```
 
 **Key behaviors:**
 
-- **Direct-reference Hanging cascading is owned by Atoms**, runs whether or not Blast Radius is wired.
-- **Blast Radius extends the affected set** via premise-tag lookup and the LLM-implicit pass.
-- **Iterative refinement** uses each human resolution as signal — the implicit pass may revise its remaining suggestions as the team works through the report.
-- **Removal carries intent.** `Superseded` / `Duplicate` / `Rejected` / `Removed` are distinct outcomes with meta (`superseded_by`, `duplicate_of`, rationale). Implementations may apply them as actual deletion (relying on snapshot history + Change Log for audit) or as tombstone statuses on the atom — both are conformant.
+- **Atoms's three-channel cascade runs whether or not Blast Radius is wired** — Blast Radius surfaces the cascade as a queryable read-only report; it doesn't cause the cascade.
+- **Blast Radius extends the impact set** via the optional LLM-implicit pass for non-structural impacts.
+- **Iterative refinement** uses each reviewer resolution as signal — the implicit pass may revise its remaining suggestions as the team works through the report.
+- **Removal carries intent.** Removal outcomes (`superseded`, `duplicate`, `rejected`, `removed`) are distinct with meta (`superseded_by`, `duplicate_of`, rationale). They are committed as tombstone transitions (the atom is retained with the removal-outcome status); physical deletion happens only via an optional, later garbage-collection pass.
 
 ## Atom lifecycle state machine
 
-**Present states** the atom can be in: `Active`, `Hanging`, `Deferred`, `Deprecated`. **Removal outcomes** that take the atom out of the snapshot, each carrying intent: `Superseded`, `Duplicate`, `Rejected`, `Removed`. Two orthogonal axes for present states: the *premise question* axis (`Active ⇄ Hanging`, with `Deferred` as the acknowledged-but-parked branch) and the *winding-down* axis (`Active ⇄ Deprecated`).
+**Present states** the atom can be in: `active`, `hanging`, `deferred`, `deprecated`. **Removal outcomes** that take the atom out of the snapshot, each carrying intent: `superseded`, `duplicate`, `rejected`, `removed`.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Active: propose accepted (Conflict: New / Compatible / Refines)
-    [*] --> Superseded: propose rejected as Supersedes (the new atom takes over)
-    [*] --> Duplicate: propose rejected as Duplicate
-    [*] --> Rejected: propose rejected (Contradicts / Unclear)
+    [*] --> active: propose accepted (Duplicate auto-resolve = false; New / Refines / soft Supersedes)
+    [*] --> superseded: propose accepted as Supersedes (this atom takes over for the prior atom)
+    [*] --> duplicate: propose classified as Duplicate (hard-block; this atom rejected)
+    [*] --> rejected: hard-block conflict outcome (Composition / DisjointEquivalence / etc.)
 
-    Active --> Hanging: premise changed (direct ref or premise tag)
-    Active --> Deprecated: explicit deprecation
-    Active --> Superseded: a new atom Supersedes this one
-    Active --> Removed: explicit removal (no specific intent)
+    active --> hanging: cascade (predicate-kind / scope-premise / derivation)
+    active --> deprecated: explicit deprecation via update_status
+    active --> superseded: a new atom Supersedes this one
+    active --> removed: explicit removal via update_status
 
-    Hanging --> Active: Keep
-    Hanging --> Active: Adapt (via propose with revised content)
-    Hanging --> Deferred: Defer
-    Hanging --> Removed: Remove
-    Hanging --> Deprecated: Deprecate
-    Hanging --> Superseded: a replacement atom is accepted
+    hanging --> active: reviewer Keep
+    hanging --> active: reviewer Adapt (revised content via propose)
+    hanging --> deferred: reviewer Defer
+    hanging --> removed: reviewer Remove
+    hanging --> deprecated: reviewer Deprecate
+    hanging --> superseded: a replacement atom is accepted
 
-    Deferred --> Hanging: re-surfaced in subsequent blast pass
-    Deferred --> Removed: explicit removal
+    deferred --> hanging: re-surfaced in subsequent cascade
+    deferred --> active: reviewer Keep
+    deferred --> removed: reviewer Remove
 
-    Deprecated --> Active: un-deprecate
-    Deprecated --> Hanging: premise change affects deprecated atom
-    Deprecated --> Removed: explicit removal
-    Deprecated --> Superseded: a replacement atom is accepted
+    deprecated --> hanging: cascade reaches it
+    deprecated --> removed: explicit removal
+    deprecated --> superseded: a replacement atom is accepted
 
-    Superseded --> [*]
-    Duplicate --> [*]
-    Rejected --> [*]
-    Removed --> [*]
+    superseded --> [*]
+    duplicate --> [*]
+    rejected --> [*]
+    removed --> [*]
 ```
 
 **Present-state meanings:**
 
-- `Active` — currently held to be true. The default. Included in active reads, projections, navigation, conflict comparisons.
-- `Hanging` — a related premise / decision changed; this atom may no longer hold; awaiting human resolution. Included in reads with a hanging marker; flagged in conflict comparisons.
-- `Deferred` — known to be hanging; team chose to defer action. Acknowledged debt. Re-surfaces in subsequent blast passes that touch the same premise.
-- `Deprecated` — still holds for existing dependents, but new dependencies should not be added against it. Conflict (inside Atoms) flags any new atom proposed against a Deprecated parent for review.
+- `active` — currently held to be true. The default. Included in active reads, projections, navigation, conflict comparisons.
+- `hanging` — a related premise / source changed; this atom may no longer hold; awaiting reviewer resolution. Included in reads with a hanging marker; flagged in conflict comparisons.
+- `deferred` — known to be hanging; team chose to defer action. Acknowledged debt. Re-surfaces in subsequent cascade passes that touch the same premise.
+- `deprecated` — still holds for existing dependents, but new dependencies should not be added against it. Conflict pipeline flags any new atom proposed against a deprecated parent for review.
 
-**Removal-outcome meanings** (atom removed from snapshot; intent recorded in Change Log meta):
+**Removal-outcome meanings** (committed atom tombstoned, or never-committed proposal dropped; intent recorded in the change stream):
 
-- `Superseded` — a different atom now holds. Meta: `superseded_by` atom id.
-- `Duplicate` — was a duplicate of a canonical atom. Meta: `duplicate_of` atom id.
-- `Rejected` — proposal rejected; never made it to canonical (e.g., Contradicts that couldn't be reconciled). Meta: rationale.
-- `Removed` — generic removal; no further intent. Meta: rationale.
+- `superseded` — a different atom now holds. Meta: `superseded_by` atom id.
+- `duplicate` — was a duplicate of a canonical atom. Meta: `duplicate_of` atom id.
+- `rejected` — proposal rejected; never made it to canonical (e.g., hard-block conflict outcome). Meta: rationale.
+- `removed` — generic removal; no further intent. Meta: rationale.
 
-**Implementation choice:** removal outcomes may persist as tombstone statuses on the atom (so the atom remains in the store with its outcome label) or be applied as actual deletion with the outcome recorded only in the Change Log. Either is conformant; the conceptual model treats the outcome as intent regardless of persistence.
+Applying a removal outcome is a two-step process: the atom MUST first transition to the removal-outcome status and be committed as a **tombstone** (it remains with that status, carrying its `correlation_id`, rationale, and meta); it is never deleted directly. Physical deletion happens only via an optional, `system:`-correlated garbage-collection pass that emits `Purged` — giving every atom a clean, auditable lifecycle. See [07 — Atom Lifecycle](../spec/07-atom-lifecycle.md) § Garbage collection.
 
 **Transition triggers (where each is invoked):**
 
 | Transition | Triggered by |
 |---|---|
-| `[*] → Active` | `Atoms.propose` accepting a `New` / `Compatible` / `Refines` classification. |
-| `[*] → Superseded` (immediate) | A proposed atom is rejected because it Supersedes an existing one — the existing atom records `Superseded` with `superseded_by` set to the new accepted atom. |
-| `[*] → Duplicate` / `Rejected` | Conflict pipeline classification outcomes during `propose`. |
-| `Active → Hanging` | Atoms's direct-reference cascade, or [Blast Radius](./07-blast-radius.md) extending via premise tags / implicit reasoning. |
-| `Active → Deprecated` | `Atoms.update_status(... Deprecated)`. |
-| `Active → Superseded` | A subsequently accepted atom Supersedes this one (driven by Conflict pipeline during a later `propose`). |
-| `Active → Removed` | `Atoms.update_status(... Removed)` — explicit non-specific removal. |
-| `Hanging → Active` (Keep) | `Atoms.update_status(... Active)`. |
-| `Hanging → Active` (Adapt) | `Atoms.propose(...)` with revised content. |
-| `Hanging → Deferred` | `Atoms.update_status(... Deferred)`. |
-| `Hanging → Removed` | `Atoms.update_status(... Removed)`. |
-| `Hanging → Deprecated` | `Atoms.update_status(... Deprecated)`. |
-| `Hanging → Superseded` | A replacement atom is accepted via `Atoms.propose`. |
-| `Deferred → Hanging` | Blast Radius re-evaluation that re-surfaces the atom. |
-| `Deprecated → Active` | `Atoms.update_status(... Active)`. |
-| `Deprecated → Hanging` | Reference cascade. |
+| `[*] → active` | `Atoms.propose` accepting a New / Refines / soft Supersedes classification. |
+| `[*] → superseded` (immediate) | A proposed atom replaces an existing one — the existing atom records `superseded` with `superseded_by` set to the new accepted atom. |
+| `[*] → duplicate` / `rejected` | Conflict pipeline classification during `propose` (Duplicate auto-resolve at high confidence; hard-block outcomes for structural violations). |
+| `active → hanging` | Cascade across any channel: predicate-kind (dependency target hangs/removes; composition source removes above threshold), scope-premise (`Scope.constraint_atoms` entry transitions), or derivation invalidation. |
+| `active → deprecated` | `Atoms.update_status(... deprecated)`. |
+| `active → superseded` | A subsequently accepted atom Supersedes this one. |
+| `active → removed` | `Atoms.update_status(... removed)`. |
+| `hanging → active` (Keep) | `Atoms.update_status(... active)`. |
+| `hanging → active` (Adapt) | `Atoms.propose(...)` with revised content. |
+| `hanging → deferred` | `Atoms.update_status(... deferred)`. |
+| `hanging → removed` | `Atoms.update_status(... removed)`. |
+| `hanging → deprecated` | `Atoms.update_status(... deprecated)`. |
+| `hanging → superseded` | A replacement atom is accepted via `Atoms.propose`. |
+| `deferred → hanging` | Subsequent cascade re-surfaces the atom. |
+| `deferred → active` | `Atoms.update_status(... active)`. |
+| `deprecated → hanging` | Cascade reaches it. |

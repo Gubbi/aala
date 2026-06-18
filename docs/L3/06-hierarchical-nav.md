@@ -1,56 +1,72 @@
 # L3 — Hierarchical Navigation Components
 
-For the container framing, see [`L2/06-hierarchical-nav.md`](../L2/06-hierarchical-nav.md). Hierarchical Navigation builds and serves multi-axis labeled tree indexes over atoms (by-domain / by-team / by-lifecycle / by-tag).
+For the container framing, see [`L2/06-hierarchical-nav.md`](../L2/06-hierarchical-nav.md). Hierarchical Navigation gives LLMs and humans a labeled-tree way into the atom set, with multiple lenses on the same atoms.
 
 ## Component diagram
 
-![L3 — Hierarchical Navigation](../diagrams/hierarchicalNavInternals.png)
+![L3 — Hierarchical Nav](../diagrams/hierarchicalNavInternals.png)
 
 ## Component reference
 
 | Component | Responsibility | Internal state | Emits / consumes |
 |---|---|---|---|
-| **Delta Consumer** | Subscribes to Atoms's delta stream via `changes_since(ref)`. Translates atom-level deltas into tree-level mutations to apply. | Per-axis consumer checkpoint `ref`. | In: ordered Atoms delta events. Out: drives Axis Builders + Rebuild Coordinator. |
-| **Axis Builders** | One builder per axis (by-domain, by-team, by-lifecycle, by-tag). Derives tree shape from atom fields and writes nodes via Tree Store. | None of their own. | Reads from Atoms; writes to Tree Store. |
-| **Label Synthesizer** | Generates LLM-assisted human-readable labels for internal tree nodes ("Payments domain — handles transaction lifecycle" rather than the raw segment `payments`). | None. | Calls LLM Gateway with `aala.label_synthesis`. Writes labels via Tree Store. |
-| **Rebuild Coordinator** | Receives snapshot-change notifications. Decides whether to apply deltas incrementally (steady state) or rebuild from scratch (after a snapshot switch). | None. | In: snapshot change. Out: directs Axis Builders. |
-| **Tree Store** | Owns the per-axis tree indexes (the trees themselves + their synthesized labels). The only component allowed to mutate or serve tree state. Persistence is implementation-specific. | Tree indexes. | Mutated by Axis Builders + Label Synthesizer; read by Navigation API + Integrity Checker. Triggers `TreeNodeChanged` / `TreeNodeAdded` / `TreeNodeRemoved` / `LabelUpdated` events to Change Log. |
-| **Integrity Checker** | Runs after applying a delta batch or after a full rebuild. Detects orphans, dead refs, structural rot. | None. | Reads via Tree Store. Out: structural-rot report. |
-| **Navigation API** | Serves `navigate(axis, path)` and `locate(axis, atom_id)` against the built trees. | None. | Pure reads via Tree Store + atom reads via Atoms's Lookup APIs. |
-| **Change Log** | Maintains the ordered, append-only event log. | Event sequence. | Emits `TreeNodeChanged` / `TreeNodeAdded` / `TreeNodeRemoved` / `LabelUpdated`. Serves `changes_since(ref)`. |
+| **Delta Consumer / Rebuild Coordinator** | Subscribes to Atoms's `changes_since(ref)` stream. Per-axis, tracks the last consumed `ref`. Routes events to the appropriate Axis Builders. Also handles full rebuild from scratch when `rebuild` is invoked. | Per-axis consumer ref. | Consumes Atoms events; drives Axis Builders. |
+| **Axis Builders** | One per axis. Each knows how to derive its tree shape from atoms and how to apply individual delta events incrementally. Common axes: `by-classification` (walks `is_a` chains), `by-tree` (groups by `Scope.tree`), `by-team`, `by-lifecycle`, `by-tag`. | Per-axis tree index. | In: delta events. Out: tree node mutations. Calls Label Synthesizer for new / changed nodes. |
+| **Label Synthesizer** | LLM-assisted node-label generation. Produces human-readable labels and short descriptions for internal tree nodes. | Label cache. | Calls LLM Gateway with `aala.label_synthesis`. |
+| **Integrity Checker** | Runs after applying a delta batch (or after a full rebuild). Produces a structural-rot report listing orphans (atoms not placed in any tree) and dead refs (tree nodes pointing at deleted atoms). | None. | Reads tree indexes; produces `IntegrityReport`. |
+| **Navigation API** | Serves `navigate` / `locate` / `axes` calls against the built trees. | None. | Pure reads. |
+| **Tree Store** | Durable persistence of the per-axis tree indexes. Implementation choice: alongside atoms in the snapshot, or container-internal cache. | Per-axis trees. | Receives writes from Axis Builders. |
+| **Change Log** | Maintains the ordered, append-only event log for the container. | Event sequence + ref / checkpoint surface. | Emits `TreeNodeAdded` / `TreeNodeChanged` / `TreeNodeRemoved` / `LabelUpdated`. Serves `changes_since(ref)`. |
 
-## Internal flow — incremental update
+## Internal flow — incremental rebuild
 
 ```mermaid
 sequenceDiagram
-    participant DC as Delta Consumer
-    participant Coord as Rebuild Coordinator
+    participant Consumer as Delta Consumer
+    participant Atoms as Atoms
     participant Builder as Axis Builder
-    participant Label as Label Synthesizer
+    participant Synth as Label Synthesizer
     participant LLM as LLM Gateway
     participant Store as Tree Store
-    participant Integrity as Integrity Checker
+    participant Check as Integrity Checker
     participant Log as Change Log
 
-    DC->>Coord: atom deltas
-    Coord->>Builder: apply to affected subtrees
-    Builder->>Label: nodes needing labels
-    Label->>LLM: aala.label_synthesis
-    LLM-->>Label: synthesized labels
-    Builder->>Store: write tree nodes
-    Label->>Store: write labels
-    Store->>Log: TreeNodeChanged / Added / Removed / LabelUpdated
-    Coord->>Integrity: check
-    Integrity->>Store: read trees
-    Integrity-->>Coord: structural report
+    Atoms-->>Consumer: ordered deltas
+    Consumer->>Builder: route per axis
+    Builder->>Builder: apply delta incrementally
+    opt new or significantly changed node
+        Builder->>Synth: synthesize label
+        Synth->>LLM: aala.label_synthesis
+        LLM-->>Synth: label + description
+        Synth-->>Builder: label
+    end
+    Builder->>Store: write node
+    Builder->>Log: TreeNodeChanged / TreeNodeAdded / LabelUpdated
+    opt batch end
+        Builder->>Check: run integrity pass
+        Check-->>Builder: report
+    end
 ```
+
+## The `by-classification` axis
+
+The `by-classification` axis is the most distinctive: it directly mirrors the ClassificationAtom `is_a` hierarchy. Each ClassificationAtom becomes a node; classified EntityAtoms appear at their primary classification's node. Sub-categories appear as child nodes.
+
+This axis serves as the navigation analog of the Glossary projection — same source data (ClassificationAtoms + their classified entities), different presentation (tree descent vs. A-to-Z listing).
+
+## The `by-tree` axis
+
+The `by-tree` axis groups atoms by `Scope.tree`. Each registered tree becomes a top-level node; atoms in the tree appear underneath. Cross-tree `kind=equivalence` RelationAtoms can be surfaced as horizontal connectors between subtrees.
+
+This axis is distinct from the broader "tree partition" concept: the `Scope.tree` value is structural data on every atom; the `by-tree` axis is just one navigation surface over that data.
 
 ## Variation points
 
 | Variation | Examples |
 |---|---|
-| Axis set | Minimal (by-domain only); typical (by-domain + by-team + by-lifecycle); full (+ by-tag and deployment-custom axes). |
-| Rebuild mode | Eager on every snapshot change; lazy on first navigation after a change; scheduled; on-demand only. |
+| Axis set | Minimal (by-classification only); typical (+by-tree, +by-team); full (+by-lifecycle, +by-tag, +custom). |
+| Rebuild mode | Eager on every snapshot change; lazy on first navigation; scheduled; on-demand. |
 | Label synthesis | LLM-based with caching (default); rule-based labels from atom metadata; no labels (raw path segments). |
-| Integrity check depth | None; basic (orphans + dead refs); deep (consistency between axes, cycle detection). |
-| Tree persistence | Stored alongside atoms in the snapshot; container-internal cache only. |
+| Integrity check depth | None; basic (orphans + dead refs); deep (cycle detection across axes). |
+| Persistence | In-snapshot; container-internal cache. |
+| Cross-tree connector display in `by-tree` axis | Hidden; shown on demand; always shown. |

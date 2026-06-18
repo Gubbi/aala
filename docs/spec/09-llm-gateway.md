@@ -4,21 +4,9 @@ This chapter binds the LLM Gateway contract: the use-case keys, schema validatio
 
 ## Standard registered use-case keys
 
-A conformant implementation realizing LLM Gateway MUST register at least the following keys. Each key has a declared intent and produces a declared shape:
+A conformant implementation realizing LLM Gateway MUST register at least the standard use-case keys enumerated in [Appendix A § Use-case keys](./appendix-a-registries.md#use-case-keys). Each key has a declared intent and produces a declared shape.
 
-| Key | Intent | Produces |
-|---|---|---|
-| `aala.extraction` | Extract atoms from a `NormalizedFragment`. | structured (matches the atom schema) |
-| `aala.conflict_judge` | Classify a proposed atom against a canonical candidate (one of the 8 outcomes). | structured |
-| `aala.blast_implicit` | "Does atom Y still hold under the new premise from decision X?" | structured |
-| `aala.projection_narrative` | Render connective prose anchored to the previous projection. | freeform |
-| `aala.label_synthesis` | Generate a semantic label + optional description for a navigation tree node. | freeform |
-| `aala.synthesis` | Multi-purpose: intent classification, response composition, diagram generation. The schema is per-call (varies by sub-use). | freeform or structured (per call) |
-| `aala.faithfulness_judge` | Verify a generated response's claims against a retrieved atom set. | structured |
-| `aala.relevance_filter` | Classify a fragment as relevant / not-relevant for downstream extraction. | structured (binary or scored) |
-| `aala.embedding_default` | Default text-to-vector embedding model. | embedding |
-
-Implementations MAY register additional keys for deployment-specific features. The standard 9 MUST be present and exposed via `LLMGateway.registered_use_cases()`.
+Implementations MAY register additional keys for deployment-specific features. The standard set MUST be present and exposed via `LLMGateway.registered_use_cases()`.
 
 ## Routing
 
@@ -39,8 +27,8 @@ The Gateway MUST:
 
 - Receive the use-case key and consult `routing()` to select the model.
 - Issue the chat call to the configured underlying provider, using the gateway tool's structured-output mechanism if a `schema` is supplied.
-- If `schema` is supplied, validate the response against it. On validation failure after configured retries, raise `SchemaViolation`.
-- Apply the per-use-case timeout. On timeout, raise `Timeout` (potentially after attempting the fallback chain).
+- If `schema` is supplied, validate the response against it. On validation failure after configured retries, raise a `generating` / `malformed_output` Activity Error.
+- Apply the per-use-case timeout. On timeout, raise a `generating` / `timeout` Activity Error (`retry_after_ms` when known), potentially after attempting the fallback chain.
 - Emit a structured observability record (see below).
 
 The returned `ChatResponse.content` MUST be schema-conforming when `schema` is supplied. The Gateway MUST NOT return raw text masquerading as structured output.
@@ -63,12 +51,12 @@ Aggregates over all calls made by all callers. Returns latency, token counts, er
 
 ## Schema validation
 
-When a caller supplies a `schema` (JSON Schema), the Gateway MUST:
+When a caller supplies a `schema` — a [JSON Schema](https://json-schema.org/) document, interpreted under the **draft 2020-12** dialect unless the document's own `$schema` declares another — the Gateway MUST:
 
 1. Pass the schema to the underlying tool when supported (most modern providers support structured-output mode).
 2. After receiving the response, validate it against the schema.
 3. On validation failure, retry up to the use-case's retry budget. The retry MAY include a corrective prompt asking the model to fix the previous attempt (implementation choice).
-4. After exhausting retries, raise `SchemaViolation` with the last raw content for diagnostics.
+4. After exhausting retries, raise a `generating` / `malformed_output` Activity Error, with the last raw content carried on the Primitive `cause` for diagnostics.
 
 The Gateway MUST NOT return content that fails schema validation. Callers can assume schema-conforming responses or an error.
 
@@ -83,7 +71,7 @@ Caching is opt-in per call via `ChatOptions.cache_key`. When `cache_key` is supp
 - A cache hit MUST return the cached response unchanged.
 - A cache miss MUST issue the model call and cache the response under the key for the implementation's TTL.
 
-When `cache_key` is absent, the Gateway MUST NOT consult or update any cache. This is critical for Projection's determinism — the cache key encodes `(atom_set + prompt_version + model_version)`, and the absence of `cache_key` indicates the caller wants a fresh call.
+When `cache_key` is absent, the Gateway MUST NOT consult or update any cache. This is critical for the projection facet's narrative determinism — the cache key encodes `(atom_set + prompt_version + model_version)`, and the absence of `cache_key` indicates the caller wants a fresh call.
 
 ## Observability
 
@@ -96,8 +84,9 @@ For every call, the Gateway MUST emit a structured observability record containi
 - `error_class` (when present)
 - `retries`
 - `fell_back` (boolean)
+- `context_atoms` / `context_fragment` — referenced identifiers only (the call's working atom set; the input fragment id for extraction calls), when the use case has them. Never raw content. These ids let Quality's feedback archive join provenance to the call record ([`interfaces/quality.md § feedback_archive`](../interfaces/quality.md#feedback_archive)).
 
-These records feed [Quality](./10-error-model.md) telemetry (when wired) and ops dashboards. The destination is deployer-configured.
+These records feed Quality telemetry (when wired) and ops dashboards. The destination is deployer-configured.
 
 ## No content persistence
 

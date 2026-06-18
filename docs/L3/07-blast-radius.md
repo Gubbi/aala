@@ -1,6 +1,6 @@
 # L3 — Blast Radius Components
 
-For the container framing, see [`L2/07-blast-radius.md`](../L2/07-blast-radius.md). Blast Radius computes the set of atoms affected by a sweeping decision and tracks resolution as humans work through it.
+For the container framing, see [`L2/07-blast-radius.md`](../L2/07-blast-radius.md). Blast Radius answers "what else changes when this atom transitions?" and tracks the answer as humans resolve each impact.
 
 ## Component diagram
 
@@ -10,87 +10,88 @@ For the container framing, see [`L2/07-blast-radius.md`](../L2/07-blast-radius.m
 
 | Component | Responsibility | Internal state | Emits / consumes |
 |---|---|---|---|
-| **Delta Consumer** | Subscribes to Atoms's delta stream. Detects decision-type `Added` events to trigger fresh analysis; consumes `StatusChanged` events on affected atoms to drive iterative refinement. | Per-snapshot consumer checkpoint `ref`. | In: Atoms delta events. Out: drives Trigger Handler. |
-| **Trigger Handler** | Entry point. Receives decision-atom events; starts a new blast analysis. | None. | Out: routes work into the analysis pipeline. |
-| **Direct-Ref Traverser** | Walks explicit `depends_on` / `references` edges via [Atoms](./03-atoms.md)'s reference-traversal primitive. The cheapest reliable detection. | None. | Out: directly-affected atom set. |
-| **Premise-Tag Resolver** | Finds atoms tagged with the now-changed premise. | None of its own. | Reads from Premise-Tag Index. Out: premise-affected atom set. |
-| **Premise-Tag Index** | Owns the `premise-tag → atoms` reverse index. The only component allowed to mutate or serve premise-index state. | The index itself. | Mutated by Delta Consumer as atoms change; read by Premise-Tag Resolver. |
-| **Subtree Identifier** | Bounds the candidate set for the implicit pass — avoids scanning unrelated entities. | None. | Out: candidate subtree. |
-| **LLM-Implicit Pass** | For each candidate atom, asks "does this still hold under the new premise?". Batched aggressively. | None. | Calls LLM Gateway with `aala.blast_implicit`. Out: refined candidate set. |
-| **Transitive Propagator** | Re-runs the pipeline on newly-affected atoms until a fixed point. Premise change → affects atom X → atom X is itself a premise → loop until stable. | Per-iteration affected set. | Out: stable affected set. |
-| **Categorizer** | Groups affected atoms by detection mechanism (direct / premise / implicit) and by suggested action (keep / adapt / deprecate / remove / defer). | None. | Out: categorized affected set. |
-| **Report Builder** | Composes blast reports from the categorized set. | None of its own. | Writes via Report Store. |
-| **Report Store** | Owns blast reports + iterative-refinement history. The only component allowed to mutate or serve report state. Persistence is implementation-specific. | Reports + refinement history. | Mutated by Report Builder + Iterative Refiner; read by external callers via the Read API. Triggers `ReportOpened` / `ReportRefined` / `ReportClosed` events to Change Log. |
-| **Iterative Refiner** | Receives `record_resolution` calls. Updates the report via Report Store. Optionally re-runs the implicit pass with new human-supplied signal. Translates each resolution into a single call against [Atoms](./03-atoms.md): `update_status(atom_id, Active / Deferred / Deprecated / Removed, rationale)` for Keep / Defer / Deprecate / Remove, or `propose(...)` for Adapt. | None of its own. | Triggers `AffectedAtomResolved` events. |
-| **Change Log** | Maintains the ordered, append-only event log. | Event sequence. | Emits `ReportOpened` / `AffectedAtomResolved` / `ReportRefined` / `ReportClosed`. Serves `changes_since(ref)`. |
+| **Delta Consumer** | Subscribes to Atoms's `changes_since(ref)` stream. Tracks the last consumed `ref`. Filters for transition events relevant to open reports (feeds Iterative Refiner) and high-impact transitions that may trigger automatic analysis. | Per-snapshot consumer ref. | Consumes Atoms events. |
+| **Trigger Handler** | When the Delta Consumer surfaces a transition with broad downstream impact (sweeping decisions, classification changes affecting many descendants), MAY initiate a fresh analysis. Configurable per deployment. | Configuration thresholds. | Drives Analyze Pipeline. |
+| **Origin Resolver** | First stage of the analyze pipeline. Resolves the input `atom_id` to a canonical atom; rejects if not found. Computes the hypothetical state when supplied. | None. | Reads Atoms. |
+| **Cascade Simulation** | Obtains the structural impact set from `Atoms.simulate_transition(atom_id, hypothetical, { depth_limit })` — the read-only dry-run of the one cascade engine (three channels + cross-tree `kind=equivalence` expansion + composition confidence gate, run to fixpoint). Does **not** re-implement the traversal; the structural set therefore matches the real lifecycle cascade by construction. | None. | Calls `Atoms.simulate_transition`. |
+| **LLM-Implicit Pass** | For each candidate atom (bounded by subtree scoping), asks: "does this still hold under the proposed transition?" Batched aggressively. Optional and configurable; **additive and advisory** — outside the structural-equivalence guarantee. | None. | Calls LLM Gateway with `aala.blast_implicit`. |
+| **Report Builder** | Produces the persisted `BlastReport` with impacts, derived_loss, iteration count, and cascade paths. | None. | Writes to Report Store. |
+| **Report Store** | Durable persistence of blast reports. Implementation choice: alongside atoms in the snapshot, or container-internal. | The reports themselves. | Receives writes from Report Builder + Iterative Refiner. Pure reads by `get_report` / `list_reports`. |
+| **Iterative Refiner** | Receives `record_resolution` calls. Translates the resolution into `Atoms.update_status`. Updates the report. Optionally re-runs the LLM-Implicit Pass with the new resolution as signal. | None. | Calls Atoms; may call LLM Gateway. |
+| **Change Log** | Maintains the ordered, append-only event log for the container. | Event sequence + ref / checkpoint surface. | Emits `ReportOpened` / `ImpactResolved` / `ReportRefined` / `ReportClosed`. Serves `changes_since(ref)`. |
 
-## Internal flow — initial analysis
+## Internal flow — analyze pipeline
 
 ```mermaid
 sequenceDiagram
-    participant DC as Delta Consumer
-    participant PIdx as Premise-Tag Index
-    participant Trig as Trigger Handler
-    participant Direct as Direct-Ref Traverser
-    participant Atoms
-    participant Premise as Premise-Tag Resolver
-    participant Subtree as Subtree Identifier
-    participant Implicit as LLM-Implicit Pass
+    participant Caller
+    participant Origin as Origin Resolver
+    participant Sim as Cascade Simulation
+    participant Atoms as Atoms
+    participant Imp as LLM-Implicit Pass
     participant LLM as LLM Gateway
-    participant Trans as Transitive Propagator
-    participant Cat as Categorizer
-    participant Builder as Report Builder
+    participant Build as Report Builder
     participant Store as Report Store
     participant Log as Change Log
 
-    DC->>PIdx: keep index in sync with atom deltas
-    DC->>Trig: decision-type Added event
-    Trig->>Direct: walk direct refs
-    Direct->>Atoms: traverse_references
-    Trig->>Premise: lookup by premise tag
-    Premise->>PIdx: read
-    Trig->>Subtree: bound candidate set
-    Subtree->>Implicit: candidates
-    Implicit->>LLM: aala.blast_implicit (batched)
-    LLM-->>Implicit: refined set
-    Implicit->>Trans: per-iteration results
-    Trans->>Trans: loop until fixed point
-    Trans->>Cat: stable affected set
-    Cat->>Builder: categorized atoms
-    Builder->>Store: write report
-    Store->>Log: ReportOpened
+    Caller->>Origin: analyze(input)
+    Origin->>Sim: atom + hypothetical state
+    Sim->>Atoms: simulate_transition(atom_id, hypothetical, depth_limit)
+    Atoms-->>Sim: structural impact set (read-only dry-run of the cascade engine)
+    opt LLM-implicit pass enabled
+        Sim->>Imp: structural set
+        Imp->>LLM: aala.blast_implicit (batched)
+        LLM-->>Imp: additive non-structural impacts
+        Imp-->>Build: additive impacts (advisory)
+    end
+    Sim->>Build: structural impact set
+    Build->>Store: persist BlastReport
+    Build->>Log: ReportOpened
+    Log-->>Caller: BlastReport
 ```
 
-## Internal flow — iterative refinement
+## Internal flow — record_resolution
 
 ```mermaid
 sequenceDiagram
-    participant Caller as Caller (Orchestration)
+    participant Caller
     participant Refiner as Iterative Refiner
-    participant Atoms
-    participant Implicit as LLM-Implicit Pass
-    participant LLM as LLM Gateway
     participant Store as Report Store
+    participant Atoms as Atoms
+    participant Imp as LLM-Implicit Pass
+    participant LLM as LLM Gateway
     participant Log as Change Log
 
-    Caller->>Refiner: record_resolution(blast_id, atom_id, resolution)
-    Refiner->>Atoms: update_status (Active / Deferred / Deprecated / Removed) or propose (for Adapt)
+    Caller->>Refiner: record_resolution(blast_id, atom_id, status, rationale, meta?)
+    Refiner->>Store: load report
+    Store-->>Refiner: report
+    Refiner->>Atoms: update_status(atom_id, status, rationale, meta)
+    Atoms-->>Refiner: cascade summary
+    Refiner->>Store: update impact resolution
     opt iterative refinement enabled
-        Refiner->>Implicit: re-run with new signal
-        Implicit->>LLM: aala.blast_implicit
-        LLM-->>Implicit: refined remaining
+        Refiner->>Imp: re-run with new signal
+        Imp->>LLM: aala.blast_implicit
+        LLM-->>Imp: refined remaining set
+        Imp-->>Refiner: refined impacts
+        Refiner->>Store: update report
+        Refiner->>Log: ReportRefined
     end
-    Refiner->>Store: update report (refine + record resolution)
-    Store->>Log: AffectedAtomResolved / ReportRefined
-    Note over Store: When all resolved → ReportClosed
+    Refiner->>Log: ImpactResolved
+    opt all impacts resolved
+        Refiner->>Store: close report
+        Refiner->>Log: ReportClosed
+    end
+    Log-->>Caller: updated BlastReport
 ```
 
 ## Variation points
 
 | Variation | Examples |
 |---|---|
-| Pipeline depth | Direct refs only (fast, low recall); +premise tags (medium); +LLM-implicit (full). |
-| Implicit-pass model tier | Top-tier (highest fidelity); mid-tier with self-check; small local model for privacy-constrained tenants. Selected via `aala.blast_implicit` use-case key. |
-| Iteration policy | Single-pass; fixed N iterations; iterative until fixed point. |
-| Subtree scoping | Conservative (more LLM calls, fewer misses); aggressive (cheaper, may miss). |
-| Report persistence | In the snapshot alongside atoms (default); container-internal only; emitted as events. |
+| Pipeline depth | Structural-only (from `simulate_transition`, fast and exact); + LLM-implicit pass (additive, advisory, full coverage). |
+| Implicit-pass model tier | Top-tier LLM; mid-tier with self-check; small local model for privacy-constrained tenants. |
+| Iteration policy | Owned by the cascade engine — `simulate_transition` runs the fixpoint; not a Blast Radius variation. |
+| Subtree scoping | Conservative (large candidate set); aggressive (tighter scoping, may miss). |
+| Report persistence | In-snapshot; container-internal only; emitted as events to external storage. |
+| Composition cascade threshold | Applied by the cascade engine (default 0.8, deployment-overridable); `simulate_transition` excludes below-threshold composition edges. |
+| Trigger Handler activation | Manual only (via `analyze` call); auto on configured transition types; auto on all transitions. |

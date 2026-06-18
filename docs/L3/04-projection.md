@@ -1,72 +1,88 @@
-# L3 — Projection Components
+# L3 — Projection Facet Components
 
-For the container framing, see [`L2/04-projection.md`](../L2/04-projection.md). Projection turns the structured atom set into a structured prose set, with deterministic rendering, aggressive caching, and per-section scoping.
+For the framing, see [`L2/04-projection.md`](../L2/04-projection.md). Projection is a cross-cutting **read facet**, not a container: each contentful container embeds this rendering pipeline over its own content. The canonical instance is [Atoms](./03-atoms.md), which renders claim prose + the glossary; other contentful containers may embed the same pipeline over their content. The components below describe that reusable pipeline.
 
 ## Component diagram
 
-![L3 — Projection](../diagrams/projectionInternals.png)
+![L3 — Projection Facet](../diagrams/projectionInternals.png)
 
 ## Component reference
 
 | Component | Responsibility | Internal state | Emits / consumes |
 |---|---|---|---|
-| **Delta Consumer** | Subscribes to Atoms's delta stream via `changes_since(ref)`. Drives the rest of the pipeline on each delta batch. | Per-snapshot consumer checkpoint `ref`. | In: ordered Atoms delta events. Out: drives Section Scoper. |
-| **Section Scoper** | Uses the Reverse Index to identify which projection files + sections are affected by a given atom set. | None. | Reads Reverse Index. Out: section-write plan. |
-| **Template Renderer** | Pure function. Deterministically renders structural content (tables, fact lists, schema-derived sections). No LLM. | None. | In: atoms for the section. Out: deterministic markdown fragments. |
-| **Narrative Renderer** | LLM-driven. Renders connective prose for narrative zones, anchored against the previous prose. | None of its own. | Calls LLM Gateway with `aala.projection_narrative`. Reads from Previous-Prose Anchor. Out: prose fragments. |
-| **Previous-Prose Anchor** | Provides the previous rendering of the section to the narrative renderer with a "preserve unchanged wording" instruction. | None. | Reads previous projection via Projection Store. Out: anchor payload for the renderer. |
-| **Render Cache** | Owns the hash → rendered-prose map. The only path to read or write cached output. | The cache itself. | Read by Section Scoper on cache-lookup; written by the assembler / renderer pipeline on cache-miss completion. |
-| **Section Assembler** | Stitches template + narrative output into a final markdown section. | None. | Combines outputs from Template + Narrative renderers. Writes via Projection Store. |
-| **Projection Store** | Owns rendered projection files in the current snapshot. The only component allowed to mutate or serve projection state. Persistence is implementation-specific. | Rendered markdown files. | Mutated by Section Assembler; read by Previous-Prose Anchor and external callers via the Read API. Triggers `SectionChanged` / `SectionAdded` / `SectionDeleted` events to Change Log. |
-| **Reverse Index** | Owns the claim-to-section reverse index. The only component allowed to mutate or serve the index. | The reverse index itself. | Read by Section Scoper; updated by Section Assembler. Triggers `IndexUpdated` events to Change Log. |
-| **Change Annotator** | Records which atoms triggered which section re-renders (for "what changed and why" attribution). | Per-render attribution log. | Read by clients that surface the why. |
-| **Change Log** | Maintains the ordered, append-only event log. | Event sequence + checkpoint surface. | Emits `SectionChanged` / `SectionAdded` / `SectionDeleted` / `IndexUpdated`. Serves `changes_since(ref)`. |
+| **Content Delta Consumer** | Subscribes to the host container's own content change stream (for Atoms, the `changes_since(ref)` atom deltas). Tracks the last consumed `ref`. Routes events to Section Scoper, Glossary Builder, and Index Builder. | Per-snapshot consumer ref. | Consumes the host's content events. |
+| **Section Scoper** | Uses the Reverse Index to determine which documents / sections are affected by a changed content set. Returns the minimal scope to re-render. | None (pure read against Reverse Index). | In: content-id set. Out: SectionPath set + driving-content map. |
+| **Template Renderer** | Pure deterministic rendering of structural content (tables, fact lists, schema-derived sections). No LLM. | Template definitions per section type. | In: content subset for a section. Out: structural markdown. |
+| **Narrative Renderer** | LLM-driven rendering of connective prose between structural sections. Uses the Previous-Prose Anchor. | None (stateless transform). | Calls LLM Gateway with `aala.projection_narrative`. Out: prose markdown. |
+| **Previous-Prose Anchor** | Passes the previous rendering of the section to the Narrative Renderer with a "preserve unchanged wording" instruction. Critical for deterministic diffs. | Anchor cache (last rendered prose per section). | Read by Narrative Renderer. |
+| **Cache Manager** | Looks up by hash `(content_set + prompt_version + model_version)`. On hit, returns cached prose; on miss, drives the renderers and caches the result. | Render cache. | Drives the renderer pipeline. |
+| **Section Assembler** | Stitches template + narrative output into a final markdown document. Writes to the Projection Store. | None. | In: rendered template + narrative. Out: assembled markdown; writes to Projection Store. |
+| **Projection Store** | Persistence layer for rendered documents in the current snapshot. Backend is implementation-specific. | The rendered files. | Receives writes from Section Assembler. Pure reads by `read` / `list`. |
+| **Reverse Index Maintainer** | Updates the content-to-section index as documents are written. Lets Section Scoper answer "which sections does content unit X appear in?". | Content → SectionPath[] mapping. | Updates after Section Assembler writes. |
+| **Index Builder** | Maintains the hierarchical navigation index (titled, summarized nodes) served by `read_index`. Synthesizes node titles/summaries (LLM-assisted) for PageIndex-style descent. | Navigation tree per snapshot. | In: content events from Content Delta Consumer. Out: `ProjectionIndex` via `read_index()`. Emits `IndexUpdated`. |
+| **Glossary Builder** (Atoms only) | Produces glossary entries from ClassificationAtoms (concept entries), EntityAtoms classified under named-individual classifications (Person, Organization, Place, Time, Concept), and PredicateAtoms (predicate entries). Incrementally updated from the Atoms delta stream. Per tree. | Glossary entry cache per tree. | In: atom events from Content Delta Consumer. Out: glossary documents. |
+| **Change Annotator** | Records which content units triggered which section re-renders. Consumed by clients that want to surface "what changed and why." | Annotation log. | Receives from Section Assembler. |
+| **Change Log** | Maintains the ordered, append-only event log for the facet. | Event sequence + ref / checkpoint surface. | Emits `DocChanged` / `DocAdded` / `DocRemoved` / `IndexUpdated`. Serves `changes_since(ref)`. |
 
-## Internal flow — section re-render
+## Internal flow — incremental re-render
 
 ```mermaid
 sequenceDiagram
-    participant DC as Delta Consumer
+    participant Consumer as Content Delta Consumer
+    participant Host as Host Container (e.g. Atoms)
     participant Scoper as Section Scoper
-    participant RI as Reverse Index
-    participant Cache as Render Cache
-    participant TR as Template Renderer
-    participant NR as Narrative Renderer
+    participant RIM as Reverse Index Maintainer
+    participant Cache as Cache Manager
+    participant Tpl as Template Renderer
+    participant Nar as Narrative Renderer
     participant Anchor as Previous-Prose Anchor
-    participant Store as Projection Store
     participant LLM as LLM Gateway
     participant Asm as Section Assembler
+    participant Store as Projection Store
+    participant Idx as Index Builder
+    participant Gloss as Glossary Builder
     participant Log as Change Log
 
-    DC->>Scoper: deltas → affected sections
-    Scoper->>RI: lookup atoms → sections
-    Scoper->>Cache: per-section lookup
-    alt cache hit
-        Cache-->>Asm: cached prose
-    else cache miss
-        Cache->>TR: template render
-        TR->>NR: structural output
-        NR->>Anchor: request anchor
-        Anchor->>Store: read previous prose
-        Store-->>Anchor: previous rendering
-        Anchor-->>NR: anchor payload
-        NR->>LLM: aala.projection_narrative (anchored)
-        LLM-->>NR: narrative prose
-        NR->>Asm: narrative output
-        TR->>Asm: template output
+    Host-->>Consumer: ordered content deltas
+    Consumer->>Scoper: changed content set
+    Scoper->>RIM: lookup affected sections
+    RIM-->>Scoper: SectionPath[]
+    Consumer->>Gloss: glossary-relevant changes
+    Gloss->>Gloss: update glossary entries
+    Consumer->>Idx: navigation-relevant changes
+    Idx->>Log: IndexUpdated
+
+    loop per affected section
+        Scoper->>Cache: lookup hash
+        alt cache hit
+            Cache-->>Asm: cached prose
+        else cache miss
+            Cache->>Tpl: render structural
+            Tpl-->>Cache: structural markdown
+            Cache->>Anchor: fetch previous prose
+            Anchor-->>Cache: anchor text
+            Cache->>Nar: render narrative with anchor
+            Nar->>LLM: aala.projection_narrative
+            LLM-->>Nar: prose
+            Nar-->>Cache: narrative markdown
+            Cache->>Cache: store hash → prose
+        end
+        Cache->>Asm: structural + narrative
+        Asm->>Store: write final markdown
+        Asm->>RIM: update reverse index
+        Asm->>Log: DocChanged (or DocAdded/Removed)
     end
-    Asm->>Store: write stitched markdown
-    Store->>Log: SectionChanged / Added / Deleted
-    Asm->>RI: update section → atoms mapping
-    RI->>Log: IndexUpdated
 ```
 
 ## Variation points
 
 | Variation | Examples |
 |---|---|
-| Rendering mode | Template-only (no LLM, fastest, least fluent); template + cached LLM narrative (default); streaming projection (incremental output for live capture). |
-| Projection schema | One file per entity / service / decision (fine-grained); one file per scope (coarse); single large generated document (smallest setups). |
+| Rendering mode | Template-only (no LLM); template + cached LLM narrative (default); streaming projection. |
+| Projection schema | One document per entity / scope; one per scope (coarse); one large document. |
+| Index granularity | Flat list; per-scope outline; deep PageIndex-style tree with per-node summaries. |
 | Cache backend | In-memory only; file-backed; external KV store. |
-| Anchor strategy | Always anchor on the previous rendering; anchor only on high-confidence stable sections; never anchor. |
-| Glossary projection | The alphabetical glossary page rendered from `definition`-type atoms with their aliases + see-also cross-references is one of Projection's outputs — not a separate container. |
+| Anchor strategy | Always anchor; anchor only stable sections; never anchor. |
+| Glossary placement (Atoms) | Per-tree glossary document; combined cross-tree glossary; embedded into domain index pages. |
+| Derived-atom rendering | Hidden (default); per-section opt-in; full diagnostic mode. |
+| Facet host | Atoms (canonical); Ingestion; Blast Radius; Hierarchical Navigation. |

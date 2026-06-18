@@ -1,8 +1,7 @@
 # LLM Gateway — Interface Contract
 
-**Version:** `aala-v1`
+**Version:** `aala-v0.1`
 **Optionality:** cross-cutting infrastructure (required by any deployment running LLM calls)
-**Container:** [`L2/09-llm-gateway.md`](../L2/09-llm-gateway.md) · [`L3/09-llm-gateway.md`](../L3/09-llm-gateway.md)
 
 LLM Gateway is the unified abstraction for language-model access. Callers specify a use-case key; the implementer-chosen gateway tool routes it to a deployer-configured model.
 
@@ -25,7 +24,7 @@ interface ToolCall {
   arguments: Record<string, unknown>
 }
 
-type JsonSchema = Record<string, unknown>  // standard JSON Schema document
+type JsonSchema = Record<string, unknown>  // a JSON Schema document, draft 2020-12 dialect (spec/09 § Schema validation)
 
 interface ChatOptions {
   temperature?:        number
@@ -97,20 +96,13 @@ function chat<T = string>(
 ): Promise<ChatResponse<T>>
 ```
 
-Issue a chat call routed by use-case key. With `schema`, the gateway validates the response and returns a parsed object; without it, returns raw text. Validation failures (after configured retries) raise `SchemaViolation`.
+Issue a chat call routed by use-case key. With `schema`, the gateway validates the response and returns a parsed object; without it, returns raw text. Validation failures (after configured retries) raise `generating` / `malformed_output`, whose Primitive `cause` carries the last raw content.
 
-**Errors:**
-```typescript
-type ChatError =
-  | CommonError
-  | { kind: "UnknownUseCase"; use_case_key: UseCaseKey }
-  | { kind: "SchemaViolation"; reason: string; raw_content: string }
-  | { kind: "Timeout"; elapsed_ms: number }
-  | { kind: "RateLimited"; retry_after_ms?: number }
-  | { kind: "ProviderError"; provider: string; reason: string }
-```
+**Errors:** `generating` — `unknown_use_case` (the `use_case_key` is not registered), `malformed_output` (model output fails the response schema after the gateway's internal retries), `throttled` (provider rate limit; `retry_after_ms` SHOULD be set), `timeout` (call deadline exceeded), `provider_failure` (the provider returned an error).
 
-**Idempotency:** not idempotent in general (LLMs are non-deterministic). Idempotent when `options.cache_key` is supplied and a cache hit is taken; the gateway returns the cached response.
+**Access:** `maintain` — the gateway's contract callers are aala containers executing within an already-admitted operation, which is not re-checked ([02 — Conformance § Access control](../spec/02-conformance.md#access-control)); where a deployment exposes this method at the perimeter, it is an operator surface.
+
+**Idempotency:** not idempotent in general (model outputs are non-deterministic). Idempotent only when `options.cache_key` is supplied and a cache hit is taken — the cached response is returned unchanged. Registry row in [00 — Shared Types § Idempotency](./00-shared-types.md#idempotency).
 
 **Concurrency:** concurrent-safe.
 
@@ -139,6 +131,8 @@ Streaming variant of `chat`. The final chunk carries the same metadata as a non-
 
 **Errors:** same as `chat`, surfaced as a stream-terminating error event.
 
+**Access:** `maintain` (as `chat`).
+
 ---
 
 ### `embed`
@@ -152,13 +146,9 @@ function embed(
 
 Returns one vector per input string. The use-case key selects the embedding model.
 
-**Errors:**
-```typescript
-type EmbedError =
-  | CommonError
-  | { kind: "UnknownUseCase"; use_case_key: UseCaseKey }
-  | { kind: "ProviderError"; provider: string; reason: string }
-```
+**Errors:** `generating` — `unknown_use_case` (the `use_case_key` is not registered), `throttled`, `timeout`, `provider_failure`.
+
+**Access:** `maintain` (as `chat`).
 
 **Concurrency:** concurrent-safe.
 
@@ -172,7 +162,9 @@ function usage(timeframe?: { since: string; until?: string }): Promise<UsageStat
 
 Aggregate call statistics for ops + Quality consumption.
 
-**Errors:** `CommonError`.
+**Errors:** `querying` — `invalid_query` (malformed timeframe).
+
+**Access:** `query`.
 
 ---
 
@@ -196,7 +188,9 @@ interface RoutingEntry {
 
 Returns the current use-case → model mapping. Useful for debugging "why did this use case use that model?"
 
-**Errors:** `CommonError`.
+**Errors:** `querying` — universal end-states only.
+
+**Access:** `query`.
 
 ---
 
@@ -208,38 +202,29 @@ function registered_use_cases(): Promise<UseCaseInfo[]>
 
 The published list of use-case keys aala expects to call. Consumed by deployers configuring their gateway tool — they need to know which keys to wire up.
 
-**Errors:** `CommonError`.
+**Errors:** `querying` — universal end-states only.
+
+**Access:** `query`.
 
 ---
 
 ## Standard registered use-case keys
 
-These are part of the `aala-v1` published contract; deployers must map a model to each one in their gateway:
+The standard keys — part of the `aala-v0.1` published contract — are enumerated in [Appendix A § Use-case keys](../spec/appendix-a-registries.md#use-case-keys), with semantics in [09 — LLM Gateway](../spec/09-llm-gateway.md#standard-registered-use-case-keys). Deployers MUST map a model to each standard key in their gateway.
 
-| Key | Intent | Produces |
-|---|---|---|
-| `aala.extraction` | Atom extraction from a fragment | structured |
-| `aala.conflict_judge` | Pairwise atom conflict classification | structured |
-| `aala.blast_implicit` | Impact-analysis implicit pass | structured |
-| `aala.projection_narrative` | Render connective prose anchored to previous projection | freeform |
-| `aala.label_synthesis` | Generate semantic node labels for tree axes | freeform |
-| `aala.synthesis` | Multi-purpose synthesis (intent classification, response composition, diagram generation) | freeform or structured |
-| `aala.faithfulness_judge` | Verify response claims grounded in retrieved atoms | structured |
-| `aala.relevance_filter` | Pre-extraction relevance classification | structured (binary) |
-| `aala.embedding_default` | Default embedding model | embedding |
-
-Implementations may register additional keys for deployment-specific features. Standard keys must be present in `registered_use_cases()`.
+Implementations MAY register additional keys for deployment-specific features. Standard keys MUST be present in `registered_use_cases()`.
 
 ---
 
 ## Version notes
 
-- **`aala-v1`** — initial contract with the nine standard keys above.
-- Patch-compatible: new standard keys (each clearly documented), new optional fields in `ChatOptions` / `ChatResponse` / `UseCaseInfo`.
+- **`aala-v0.1`** — initial contract with the standard keys ([Appendix A § Use-case keys](../spec/appendix-a-registries.md#use-case-keys)).
+- Backward-compatible: new standard keys (each clearly documented), new optional fields in `ChatOptions` / `ChatResponse` / `UseCaseInfo`.
 - Breaking: removing standard keys; changing what an existing key is expected to produce.
 
 ## Notes for implementers
 
 - The Gateway is schema-transparent: callers provide the schema, the gateway forwards to the underlying tool (using the tool's structured-output mechanism when available) and validates the response.
-- Caching is opt-in per call via `options.cache_key`. Projection's narrative rendering relies on this for determinism.
-- Observability emission (call records to Quality) is part of the contract — implementations must emit per-call structured records when any consumer subscribes.
+- Caching is opt-in per call via `options.cache_key`. The projection facet's narrative rendering relies on this for determinism.
+- Observability emission (call records to Quality) is part of the contract — implementations MUST emit per-call structured records when any consumer subscribes, each keyed by a freshly minted `CallId` ([Appendix A § Identifier minting](../spec/appendix-a-registries.md#identifier-minting)).
+- No content persistence beyond the cache and structured observability records. Raw content MUST NOT be logged by default. Optional deployer-configured logging with consent and redaction is permitted.

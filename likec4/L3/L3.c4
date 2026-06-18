@@ -21,6 +21,11 @@ specification {
       color sky
     }
   }
+  element facet {
+    style {
+      color indigo
+    }
+  }
   element component
 }
 
@@ -32,8 +37,9 @@ model {
   aala = system 'aala' {
     orchestration = container 'Orchestration' {
       snap_mgr = component 'Snapshot Manager' 'Creates / switches / publishes / discards snapshots'
+      tree_registry = component 'Tree Registry' 'Registers, lists, renames trees; triggers standard-library initialization'
       api_surface = component 'External API Surface' 'Protocol handlers (MCP / HTTP / CLI / library)'
-      router = component 'Request Router' 'Routes incoming requests to capabilities'
+      router = component 'Request Router' 'Routes incoming requests to capabilities; tree assignment'
       lifecycle = component 'Lifecycle Tracker' 'Tracks in-flight multi-step operations'
       cap_registry = component 'Capability Registry' 'What optional capabilities are wired'
       composer = component 'Composer' 'Combines capability outputs into one response'
@@ -48,89 +54,86 @@ model {
     }
 
     atoms = container 'Atoms' {
-      schema = component 'Schema' 'Atom shape + subtype definitions'
-      atom_store = component 'Atom Store' 'Durable persistence in current snapshot'
+      schema = component 'Schema' 'Atom base + per-type rules; validates against resolved classification schema'
+      atom_store = component 'Atom Store' 'Durable persistence in current snapshot (asserted + derived)'
+      standard_library = component 'Standard Library' 'Pre-registered ClassificationAtoms and PredicateKindAtoms per tree'
       extraction_router = component 'Extraction Router' 'Pick extractors by content kind'
-      extractors = component 'Extractors' 'Pluggable per content kind (decision / definition / dependency / generic)'
-      conflict_pipeline = component 'Conflict Pipeline' 'Deterministic → NN → LLM judge'
-      embedding_index = component 'Embedding Index' 'Internal NN store (private)'
-      status_manager = component 'Status Manager' 'Single mutation funnel. Applies present-state transitions (Active / Hanging / Deferred / Deprecated) and removal outcomes (Superseded / Duplicate / Rejected / Removed, each with intent meta) to the Atom Store. The only component allowed to mutate canonical atom state.'
-      lookup_apis = component 'Lookup APIs' 'Read primitives (by-id, traverse_references, list_scope)'
-      atoms_change_log = component 'Change Log' 'Emits Added / Updated / StatusChanged / Deleted'
+      extractors = component 'Extractors' 'Produce proposed entity / relation / classification / predicate atoms'
+      classification_suggester = component 'Classification Suggester' 'Suggest is_a chain for novel atoms (aala.classification_suggest)'
+      predicate_suggester = component 'Predicate Suggester' 'Suggest PredicateAtom + kind for novel relationship surface forms (aala.predicate_suggest)'
+      alias_graph = component 'Alias Graph' 'Within-tree alias index; supports resolve_subject'
+      schema_resolver = component 'Schema Resolver' 'Walks is_a / sub-predicate chains; accumulates schemas; caches resolved'
+      conflict_pipeline = component 'Conflict Pipeline' '9-stage classification: structural → alias resolve → schema → duplicate/similarity → edge-specific → equivalence coherence → capacity → promotion → cross-tree advisory'
+      embedding_index = component 'Embedding Index' 'Within-tree NN store for similarity (private)'
+      cross_tree_similarity = component 'Cross-Tree Similarity Index' 'Cross-tree NN; surfaces CrossTreeEquivalenceCandidate outcomes (advisory)'
+      validators = component 'Validators' 'Per-type field checks + subject treatment + for_atom_types + cumulative required_relations + domain/range'
+      entailment_engine = component 'Entailment Engine' 'T1 + T2 produce derived atoms; T3 produces conflict outcomes; impl chooses caching'
+      status_manager = component 'Status Manager' 'Single mutation funnel. Applies present-state transitions and removal outcomes. Runs the three-channel cascade fixpoint (predicate-kind, scope-premise, derivation invalidation). The only component allowed to mutate canonical atom state.'
+      lookup_apis = component 'Lookup APIs' 'Read primitives (get_by_id, list_scope, list_by_classification, list_by_tree, resolve_subject, traverse_relations, get_classification_schema, get_predicate_schema, simulate_transition — read-only cascade dry-run)'
+      atoms_change_log = component 'Change Log' 'Emits Added / DerivedAdded / Updated / StatusChanged / Superseded / Duplicate / Rejected / Removed / Purged (GC) / DerivedInvalidated / ConflictOutcomeEmitted / ConflictOutcomeResolved / ClassificationSchemaUpdated / PredicateSchemaUpdated'
     }
 
-    projection = container 'Projection' {
-      proj_delta_consumer = component 'Delta Consumer' 'Subscribe to Atoms delta stream'
+    projection = facet 'Projection (facet)' {
+      proj_delta_consumer = component 'Content Delta Consumer' 'Subscribe to the host container content stream (Atoms delta stream for the canonical host)'
       section_scoper = component 'Section Scoper' 'Affected sections via reverse index'
       template_renderer = component 'Template Renderer' 'Deterministic structural rendering'
       narrative_renderer = component 'Narrative Renderer' 'LLM-driven connective prose'
       anchor = component 'Previous-Prose Anchor' 'Minimize gratuitous rephrasing'
       render_cache = component 'Render Cache' 'Owns hash → rendered-prose map. Only path to read or write cached output.'
       assembler = component 'Section Assembler' 'Stitch template + narrative'
-      projection_store = component 'Projection Store' 'Owns rendered projection files in the current snapshot. The only component allowed to mutate or serve projection state.'
-      reverse_index = component 'Reverse Index' 'Owns the claim-to-section reverse index. Sole accessor.'
-      annotator = component 'Change Annotator' 'What atoms drove which sections'
-      proj_change_log = component 'Change Log' 'Emits SectionChanged / SectionAdded / SectionDeleted / IndexUpdated'
+      projection_store = component 'Projection Store' 'Owns rendered projection documents in the current snapshot.'
+      reverse_index = component 'Reverse Index' 'Owns the content-to-section reverse index.'
+      index_builder = component 'Index Builder' 'Hierarchical navigation index (PageIndex-style) served by read_index'
+      glossary_builder = component 'Glossary Builder' 'Atoms host only: per-tree glossary from ClassificationAtoms, named-individual EntityAtoms, PredicateAtoms'
+      annotator = component 'Change Annotator' 'What content drove which sections'
+      proj_change_log = component 'Change Log' 'Emits DocChanged / DocAdded / DocRemoved / IndexUpdated'
     }
 
     hierarchical_nav = optionalContainer 'Hierarchical Navigation' {
       nav_delta_consumer = component 'Delta Consumer' 'Subscribe to Atoms delta stream'
-      axis_builders = component 'Axis Builders' 'One per axis (domain / team / lifecycle / tag)'
+      axis_builders = component 'Axis Builders' 'One per axis (by-classification, by-tree, by-team, by-lifecycle, by-tag)'
       label_synthesizer = component 'Label Synthesizer' 'LLM-assisted node labels'
       rebuild_coord = component 'Rebuild Coordinator' 'Decide incremental vs full rebuild'
-      tree_store = component 'Tree Store' 'Owns the per-axis tree indexes. The only component allowed to mutate or serve tree state.'
+      tree_store = component 'Tree Store' 'Owns the per-axis tree indexes.'
       integrity_check = component 'Integrity Checker' 'Orphans / dead refs / rot'
-      navigation_api = component 'Navigation API' 'Serves navigate / locate'
+      navigation_api = component 'Navigation API' 'Serves navigate / locate / axes'
       nav_change_log = component 'Change Log' 'Emits TreeNodeChanged / Added / Removed / LabelUpdated'
     }
 
     blast_radius = optionalContainer 'Blast Radius' {
       blast_delta_consumer = component 'Delta Consumer' 'Subscribe to Atoms delta stream'
-      trigger = component 'Trigger Handler' 'Entry point for decision-atom events'
-      direct_traverser = component 'Direct-Ref Traverser' 'Walk explicit refs'
-      premise_resolver = component 'Premise-Tag Resolver' 'Lookup by premise tag'
-      premise_index = component 'Premise-Tag Index' 'Owns the premise-tag → atoms reverse index'
-      subtree_id = component 'Subtree Identifier' 'Bound candidate set'
-      implicit_pass = component 'LLM-Implicit Pass' 'Reasoning over candidates'
-      transitive_prop = component 'Transitive Propagator' 'Loop until fixed point'
-      categorizer = component 'Categorizer' 'Group by detection mechanism + suggested action'
-      report_builder = component 'Report Builder' 'Compose blast reports'
-      report_store = component 'Report Store' 'Owns blast reports + iterative-refinement history. The only component allowed to mutate or serve report state.'
-      iterative_refiner = component 'Iterative Refiner' 'Receives record_resolution; refines'
-      blast_change_log = component 'Change Log' 'Emits ReportOpened / AffectedAtomResolved / ReportRefined / ReportClosed'
-    }
-
-    synthesis = optionalContainer 'Synthesis' {
-      intent_parser = component 'Intent Parser' 'Classify intent → generator kind'
-      generator_registry = component 'Generator Registry' 'Pluggable generators (Q&A / ADR / diagram / walkthrough / comparison)'
-      capability_composer = component 'Capability Composer' 'Per-generator capability invocation plan'
-      audience_adapter = component 'Audience Adapter' 'Tune framing per audience'
-      conflict_surfacer = component 'Conflict Surfacer' 'Surface unresolved conflicts in response'
-      confidence_temperer = component 'Confidence Temperer' 'Hedge low-confidence claims'
-      provenance_attacher = component 'Provenance Attacher' 'Citations: atoms + nav path + sources'
-      faithfulness_checker = component 'Faithfulness Checker' 'Verify claims grounded in retrieved atoms'
-      diagram_generator = component 'Diagram Generator' 'Compose structural output (mermaid / likec4 / etc.)'
+      trigger = component 'Trigger Handler' 'Auto-initiate analysis on high-impact transitions (configurable)'
+      origin_resolver = component 'Origin Resolver' 'Resolve atom + hypothetical state'
+      cascade_sim = component 'Cascade Simulation' 'Structural impact via Atoms.simulate_transition — read-only dry-run of the one cascade engine. Does NOT re-implement traversal.'
+      implicit_pass = component 'LLM-Implicit Pass' 'Optional non-structural impact via LLM reasoning (additive, advisory)'
+      report_builder = component 'Report Builder' 'Map simulation into BlastReport (impacts + cascade paths + derived loss); apply scope_filter'
+      report_store = component 'Report Store' 'Owns blast reports + iterative-refinement history.'
+      iterative_refiner = component 'Iterative Refiner' 'Receives record_resolution; calls Atoms.update_status; optionally re-runs implicit pass'
+      blast_change_log = component 'Change Log' 'Emits ReportOpened / ImpactResolved / ReportRefined / ReportClosed'
     }
 
     quality = optionalContainer 'Quality' {
-      bench_corpus = component 'Benchmark Corpus' 'Implementer-maintained synthetic ground'
+      bench_corpus = component 'Benchmark Corpus' 'Implementer-maintained synthetic ground; includes structural conflict cases'
       bench_runner = component 'Benchmark Runner' 'Runs corpus on each release'
       golden_runner = component 'Golden-Set Runner' 'Deployer-facing eval surface'
       retrieval_eval = component 'Retrieval Evaluator' 'Precision/recall on retrieved atoms'
       faithfulness_eval = component 'Faithfulness Evaluator' 'Claim-grounding check'
       judge_harness = component 'LLM-as-Judge Harness' 'Rubric-based qualitative scoring'
-      planted_runner = component 'Planted-Contradiction Runner' 'End-to-end conflict check'
+      conflict_test_runner = component 'Conflict-Pipeline Test Runner' 'Inject planted structural conflict cases; verify outcomes and modes'
       shadow_eval = component 'Shadow Eval Orchestrator' 'Mirror traffic to new version'
-      telemetry = component 'Telemetry Aggregator' 'Aggregate-only signals'
+      telemetry = component 'Telemetry Aggregator' 'Aggregate signals; supports tree-bucketed metrics'
       failed_archive = component 'Failed-Query Archive' 'Thumbs-down captured with provenance'
       qual_change_log = component 'Change Log' 'Emits BenchmarkRun / GoldenSetRun / FeedbackRecorded / ShadowEvalDiff'
     }
 
     llm_gateway = crossCutting 'LLM Gateway' {
-      use_case_registry = component 'Use-Case Key Registry' 'Named buckets aala calls'
+      use_case_registry = component 'Use-Case Key Registry' 'Named buckets aala calls (extraction, conflict_judge, classification_suggest, predicate_suggest, projection_narrative, label_synthesis, blast_implicit, faithfulness_judge, relevance_filter, embedding_default)'
       gateway_adapter = component 'Gateway Adapter' 'Translates to chosen tool (LiteLLM / OpenRouter / Portkey / direct)'
+      routing_table = component 'Routing Table' 'Per-use-case primary model + fallback + timeout + retry budget'
       retry_timeout = component 'Retry / Timeout Layer' 'Per-use-case policy'
       fallback_chain = component 'Fallback Chain' 'Graceful tier downgrade'
+      schema_validation = component 'Schema Validation Layer' 'Validate structured outputs against caller schema; retry with corrective prompts'
+      cache_layer = component 'Cache Layer' 'Opt-in per-call caching keyed by cache_key'
       observability = component 'Observability Emitter' 'Structured call records'
     }
   }
@@ -138,17 +141,23 @@ model {
   // === Orchestration internal flow ===
   agent -> aala.orchestration.api_surface 'ingest / query / approve'
   aala.orchestration.api_surface -> aala.orchestration.snap_mgr 'select snapshot'
+  aala.orchestration.api_surface -> aala.orchestration.tree_registry 'list / register trees'
   aala.orchestration.api_surface -> aala.orchestration.lifecycle 'start in-flight tracking'
   aala.orchestration.api_surface -> aala.orchestration.router 'dispatch'
   aala.orchestration.router -> aala.orchestration.cap_registry 'consult availability'
   aala.orchestration.router -> aala.orchestration.composer 'compose response'
   aala.orchestration.snap_mgr -> storage 'snapshot ops'
+  aala.orchestration.tree_registry -> aala.atoms.standard_library 'initialize standard library on new tree'
 
-  // Orchestration → Atoms entry points (specific components)
+  // Orchestration → Atoms entry points
   aala.orchestration.router -> aala.atoms.extraction_router 'propose(fragment)'
   aala.orchestration.router -> aala.atoms.status_manager 'update_status'
-  aala.orchestration.router -> aala.atoms.lookup_apis 'reads (by-id, list_scope, traverse_references)'
+  aala.orchestration.router -> aala.atoms.lookup_apis 'reads'
   aala.orchestration.router -> aala.atoms.atoms_change_log 'changes_since(ref)'
+
+  // Orchestration → Projection facet entry point
+  aala.orchestration.router -> aala.projection.projection_store 'read / list'
+  aala.orchestration.router -> aala.projection.index_builder 'read_index'
 
   // === Ingestion internal flow ===
   aala.ingestion.source_adapters -> aala.ingestion.normalizer 'source payload → NormalizedFragment'
@@ -161,21 +170,38 @@ model {
   // === Atoms internal flow ===
   aala.atoms.extraction_router -> aala.atoms.extractors 'route by content kind'
   aala.atoms.extractors -> aala.llm_gateway 'aala.extraction'
-  aala.atoms.extractors -> aala.atoms.conflict_pipeline 'ProposedAtom[]'
-  aala.atoms.conflict_pipeline -> aala.atoms.embedding_index 'NN search'
-  aala.atoms.conflict_pipeline -> aala.atoms.lookup_apis 'read candidate atoms'
+  aala.atoms.extractors -> aala.atoms.classification_suggester 'novel classification'
+  aala.atoms.extractors -> aala.atoms.predicate_suggester 'novel predicate'
+  aala.atoms.classification_suggester -> aala.llm_gateway 'aala.classification_suggest'
+  aala.atoms.predicate_suggester -> aala.llm_gateway 'aala.predicate_suggest'
+  aala.atoms.extractors -> aala.atoms.validators 'validate per-type'
+  aala.atoms.validators -> aala.atoms.schema_resolver 'walk chains'
+  aala.atoms.schema_resolver -> aala.atoms.atom_store 'read atoms'
+  aala.atoms.validators -> aala.atoms.conflict_pipeline 'validated proposals'
+  aala.atoms.conflict_pipeline -> aala.atoms.alias_graph 'resolve prose subjects'
+  aala.atoms.conflict_pipeline -> aala.atoms.embedding_index 'within-tree NN'
+  aala.atoms.conflict_pipeline -> aala.atoms.cross_tree_similarity 'cross-tree advisory NN'
+  aala.atoms.conflict_pipeline -> aala.atoms.schema_resolver 'schema-driven checks'
   aala.atoms.conflict_pipeline -> aala.llm_gateway 'aala.conflict_judge'
   aala.atoms.embedding_index -> aala.llm_gateway 'aala.embedding_default'
-  aala.atoms.conflict_pipeline -> aala.atoms.status_manager 'apply outcomes + cascade Hanging'
+  aala.atoms.cross_tree_similarity -> aala.llm_gateway 'aala.embedding_default'
+  aala.atoms.conflict_pipeline -> aala.atoms.status_manager 'apply outcomes + run cascade'
   aala.atoms.status_manager -> aala.atoms.atom_store 'write / mutate / remove'
-  aala.atoms.status_manager -> aala.atoms.atoms_change_log 'Added / Updated / StatusChanged / Superseded / Duplicate / Rejected / Removed'
+  aala.atoms.status_manager -> aala.atoms.entailment_engine 'invalidate stale + recompute derivations'
+  aala.atoms.entailment_engine -> aala.atoms.atom_store 'write derived atoms'
+  aala.atoms.status_manager -> aala.atoms.atoms_change_log 'transition + cascade events'
+  aala.atoms.entailment_engine -> aala.atoms.atoms_change_log 'DerivedAdded / DerivedInvalidated'
   aala.atoms.atom_store -> aala.atoms.schema 'validate on write'
   aala.atoms.lookup_apis -> aala.atoms.atom_store 'reads'
+  aala.atoms.lookup_apis -> aala.atoms.alias_graph 'resolve_subject'
+  aala.atoms.lookup_apis -> aala.atoms.schema_resolver 'get_classification_schema / get_predicate_schema'
   aala.atoms.atom_store -> storage 'persist to current snapshot'
 
-  // === Projection internal flow ===
+  // === Projection facet internal flow (canonical host: Atoms) ===
   aala.projection.proj_delta_consumer -> aala.atoms.atoms_change_log 'changes_since(ref)'
-  aala.projection.proj_delta_consumer -> aala.projection.section_scoper 'atom deltas → sections'
+  aala.projection.proj_delta_consumer -> aala.projection.section_scoper 'content deltas → sections'
+  aala.projection.proj_delta_consumer -> aala.projection.glossary_builder 'glossary-relevant deltas'
+  aala.projection.proj_delta_consumer -> aala.projection.index_builder 'navigation-relevant deltas'
   aala.projection.section_scoper -> aala.projection.reverse_index 'lookup'
   aala.projection.section_scoper -> aala.projection.render_cache 'per-section lookup'
   aala.projection.render_cache -> aala.projection.template_renderer 'on cache miss'
@@ -186,9 +212,10 @@ model {
   aala.projection.template_renderer -> aala.projection.assembler 'template fragments'
   aala.projection.narrative_renderer -> aala.projection.assembler 'narrative fragments'
   aala.projection.assembler -> aala.projection.projection_store 'write stitched markdown'
-  aala.projection.projection_store -> aala.projection.proj_change_log 'SectionChanged / Added / Deleted'
+  aala.projection.projection_store -> aala.projection.proj_change_log 'DocChanged / DocAdded / DocRemoved'
   aala.projection.assembler -> aala.projection.reverse_index 'update mapping'
-  aala.projection.reverse_index -> aala.projection.proj_change_log 'IndexUpdated'
+  aala.projection.index_builder -> aala.projection.proj_change_log 'IndexUpdated'
+  aala.projection.glossary_builder -> aala.projection.projection_store 'write glossary docs'
   aala.projection.assembler -> aala.projection.annotator 'attribution'
 
   // === Hierarchical Navigation internal flow ===
@@ -207,58 +234,35 @@ model {
 
   // === Blast Radius internal flow ===
   aala.blast_radius.blast_delta_consumer -> aala.atoms.atoms_change_log 'changes_since(ref)'
-  aala.blast_radius.blast_delta_consumer -> aala.blast_radius.trigger 'decision-type Added event'
-  aala.blast_radius.blast_delta_consumer -> aala.blast_radius.premise_index 'update from atom deltas'
-  aala.blast_radius.trigger -> aala.blast_radius.direct_traverser 'walk direct refs'
-  aala.blast_radius.trigger -> aala.blast_radius.premise_resolver 'lookup by premise'
-  aala.blast_radius.trigger -> aala.blast_radius.subtree_id 'bound candidates'
-  aala.blast_radius.direct_traverser -> aala.atoms.lookup_apis 'traverse_references'
-  aala.blast_radius.premise_resolver -> aala.blast_radius.premise_index 'read'
-  aala.blast_radius.subtree_id -> aala.blast_radius.implicit_pass 'candidate set'
+  aala.blast_radius.blast_delta_consumer -> aala.blast_radius.trigger 'high-impact transition'
+  aala.blast_radius.trigger -> aala.blast_radius.origin_resolver 'analyze'
+  aala.blast_radius.origin_resolver -> aala.blast_radius.cascade_sim 'analyze (atom + hypothetical)'
+  aala.blast_radius.cascade_sim -> aala.atoms.lookup_apis 'simulate_transition (read-only dry-run)'
+  aala.blast_radius.cascade_sim -> aala.blast_radius.report_builder 'structural impact set'
+  aala.blast_radius.cascade_sim -> aala.blast_radius.implicit_pass 'structural set (optional pass)'
   aala.blast_radius.implicit_pass -> aala.llm_gateway 'aala.blast_implicit'
-  aala.blast_radius.implicit_pass -> aala.blast_radius.transitive_prop 'per-iteration'
-  aala.blast_radius.transitive_prop -> aala.blast_radius.categorizer 'stable set'
-  aala.blast_radius.categorizer -> aala.blast_radius.report_builder 'categorized'
+  aala.blast_radius.implicit_pass -> aala.blast_radius.report_builder 'additive impacts'
   aala.blast_radius.report_builder -> aala.blast_radius.report_store 'write report'
-  aala.blast_radius.report_store -> aala.blast_radius.blast_change_log 'ReportOpened / Refined / Closed'
+  aala.blast_radius.report_store -> aala.blast_radius.blast_change_log 'ReportOpened'
   aala.blast_radius.iterative_refiner -> aala.blast_radius.report_store 'read + update'
   aala.blast_radius.iterative_refiner -> aala.atoms.status_manager 'update_status'
-  aala.blast_radius.iterative_refiner -> aala.atoms.extraction_router 'propose (for Adapt)'
   aala.blast_radius.iterative_refiner -> aala.blast_radius.implicit_pass 're-run with signal'
-  aala.blast_radius.iterative_refiner -> aala.blast_radius.blast_change_log 'AffectedAtomResolved'
-
-  // === Synthesis internal flow ===
-  aala.synthesis.intent_parser -> aala.llm_gateway 'aala.synthesis (classify)'
-  aala.synthesis.intent_parser -> aala.synthesis.generator_registry 'pick generator'
-  aala.synthesis.generator_registry -> aala.synthesis.capability_composer 'generator + needs'
-  aala.synthesis.capability_composer -> aala.hierarchical_nav.navigation_api 'navigate (soft dep)'
-  aala.synthesis.capability_composer -> aala.blast_radius.report_builder 'get_report (soft dep)'
-  aala.synthesis.capability_composer -> aala.projection 'read aligned prose (soft dep)'
-  aala.synthesis.capability_composer -> aala.atoms.lookup_apis 'read referenced atoms'
-  aala.synthesis.capability_composer -> aala.llm_gateway 'aala.synthesis (compose)'
-  aala.synthesis.capability_composer -> aala.synthesis.audience_adapter 'audience hint'
-  aala.synthesis.capability_composer -> aala.synthesis.conflict_surfacer 'surface conflicts'
-  aala.synthesis.conflict_surfacer -> aala.synthesis.confidence_temperer 'temper confidence'
-  aala.synthesis.confidence_temperer -> aala.synthesis.provenance_attacher 'attach citations'
-  aala.synthesis.provenance_attacher -> aala.synthesis.diagram_generator 'if structural output'
-  aala.synthesis.diagram_generator -> aala.llm_gateway 'aala.synthesis (diagram)'
-  aala.synthesis.provenance_attacher -> aala.synthesis.faithfulness_checker 'verify'
-  aala.synthesis.faithfulness_checker -> aala.llm_gateway 'aala.faithfulness_judge'
+  aala.blast_radius.iterative_refiner -> aala.blast_radius.blast_change_log 'ImpactResolved / ReportRefined / ReportClosed'
 
   // === Quality internal flow ===
   aala.quality.bench_runner -> aala.quality.bench_corpus 'load corpus'
-  aala.quality.bench_runner -> aala.synthesis.intent_parser 'run queries (against test set)'
+  aala.quality.bench_runner -> aala.projection.projection_store 'check rendered output (against test set)'
   aala.quality.bench_runner -> aala.atoms.lookup_apis 'verify expected atoms'
   aala.quality.bench_runner -> aala.quality.retrieval_eval 'score retrieval'
   aala.quality.bench_runner -> aala.quality.faithfulness_eval 'score faithfulness'
   aala.quality.bench_runner -> aala.quality.judge_harness 'rubric scores'
-  aala.quality.golden_runner -> aala.synthesis.intent_parser 'run deployer queries'
+  aala.quality.golden_runner -> aala.atoms.lookup_apis 'run deployer retrieval queries'
   aala.quality.golden_runner -> aala.quality.retrieval_eval 'score retrieval'
   aala.quality.golden_runner -> aala.quality.faithfulness_eval 'score faithfulness'
   aala.quality.golden_runner -> aala.quality.judge_harness 'rubric scores'
   aala.quality.judge_harness -> aala.llm_gateway 'aala.faithfulness_judge'
-  aala.quality.planted_runner -> aala.atoms.extraction_router 'inject + verify classification'
-  aala.quality.shadow_eval -> aala.synthesis.intent_parser 'mirror traffic'
+  aala.quality.conflict_test_runner -> aala.atoms.extraction_router 'inject planted conflict cases + verify outcomes'
+  aala.quality.shadow_eval -> aala.atoms.lookup_apis 'mirror retrieval traffic'
   aala.quality.shadow_eval -> aala.quality.telemetry 'diff metrics'
   aala.quality.telemetry -> aala.llm_gateway 'read LLM call records'
   aala.quality.bench_runner -> aala.quality.qual_change_log 'BenchmarkRun'
@@ -267,11 +271,15 @@ model {
   aala.quality.failed_archive -> aala.quality.qual_change_log 'FeedbackRecorded'
 
   // === LLM Gateway internal flow ===
-  aala.llm_gateway.use_case_registry -> aala.llm_gateway.gateway_adapter 'lookup model + policy'
-  aala.llm_gateway.gateway_adapter -> aala.llm_gateway.retry_timeout 'wrap call'
-  aala.llm_gateway.retry_timeout -> aala.llm_gateway.fallback_chain 'on timeout / error'
-  aala.llm_gateway.retry_timeout -> aala.llm_gateway.observability 'emit call record'
+  aala.llm_gateway.use_case_registry -> aala.llm_gateway.routing_table 'lookup'
+  aala.llm_gateway.routing_table -> aala.llm_gateway.cache_layer 'check cache (opt-in)'
+  aala.llm_gateway.cache_layer -> aala.llm_gateway.fallback_chain 'cache miss'
+  aala.llm_gateway.fallback_chain -> aala.llm_gateway.retry_timeout 'try primary'
+  aala.llm_gateway.retry_timeout -> aala.llm_gateway.gateway_adapter 'send'
   aala.llm_gateway.gateway_adapter -> llm 'tool-native chat / embed'
+  aala.llm_gateway.retry_timeout -> aala.llm_gateway.schema_validation 'validate structured output'
+  aala.llm_gateway.schema_validation -> aala.llm_gateway.retry_timeout 'retry with corrective prompt'
+  aala.llm_gateway.retry_timeout -> aala.llm_gateway.observability 'emit call record'
   aala.llm_gateway.observability -> aala.quality.telemetry 'structured records'
 }
 
@@ -287,7 +295,7 @@ views {
   }
 
   view projectionInternals of aala.projection {
-    title 'L3 — Projection Components'
+    title 'L3 — Projection Facet Components'
     include *
   }
 
@@ -303,11 +311,6 @@ views {
 
   view blastRadiusInternals of aala.blast_radius {
     title 'L3 — Blast Radius Components'
-    include *
-  }
-
-  view synthesisInternals of aala.synthesis {
-    title 'L3 — Synthesis Components'
     include *
   }
 

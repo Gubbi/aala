@@ -17,7 +17,7 @@ Software engineering organizations produce knowledge faster than they can struct
 
 Net effect: the organization's actual state — what was decided, why, what constraints apply, what trade-offs were made — exists as scattered fragments across tools and individual memory. New team members spend weeks reconstructing it. PMs and designers ask engineers questions whose answers should be queryable. Sweeping decisions (platform changes, deprecations) miss large parts of their implications because nobody has a comprehensive view of what depends on what.
 
-The Knowledge Compiler treats these fragments as evidence, extracts the underlying claims, maintains them as a versioned canonical store, and generates the right view of that store on demand — for the right audience, at the right level of detail.
+The Knowledge Compiler treats these fragments as evidence, extracts the underlying claims, and maintains them as a versioned canonical store with read surfaces — a structured graph-query API plus a projection facet exposing canonical claim prose and a navigable index. External agents (the caller's own LLMs, skills, and agents) consume those read surfaces to answer questions and compose documents for the right audience, at the right level of detail.
 
 ---
 
@@ -38,10 +38,10 @@ The Knowledge Compiler treats these fragments as evidence, extracts the underlyi
 | **Detect** | Contradictions, supersession, refinement, reinforcement, scope mismatches |
 | **Analyze** | Blast radius of sweeping decisions across the dependency graph |
 | **Maintain** | Versioned canonical claim store with full audit trail |
-| **Generate** | C4 design docs, ADRs, flow walkthroughs, ad-hoc Q&A, comparisons |
+| **Expose** | Read surfaces over the store: a structured graph-query API and a projection facet (canonical claim prose + navigable index). External agents consume these to answer questions and compose documents (C4 design docs, ADRs, flow walkthroughs, ad-hoc Q&A, comparisons) — aala does not generate those itself. See [`docs/analysis/agent-integration-pattern.md`](analysis/agent-integration-pattern.md). |
 | **Review** | Via git PRs with bot-assisted change summaries and conflict annotations |
 | **Evaluate** | Built-in eval surfaces for tenants; aggregate telemetry for the builder |
-| **Supersede existing doc stores** | The canonical claim store + generated projections replace Confluence / Notion / Drive for the planning-state material this system covers. |
+| **Supersede existing doc stores** | The canonical claim store + its projection facet (canonical claim prose) replace Confluence / Notion / Drive for the planning-state material this system covers. |
 
 ### Out of scope (now)
 
@@ -70,7 +70,7 @@ What each persona gets, and how they interact.
 | **Product Manager** | Query system behavior under conditions, trade-offs, constraint history; review changes that affect product surface area | Query UI; PR reviews |
 | **Designer** | Understand current trade-offs, query "why this way?", trace decisions that affect user-facing flows | Query UI |
 | **Engineering Manager** | Review changes scoped to their team; query cross-cutting state; verify sweeping-decision rework completeness | PR reviews; Query UI |
-| **Engineer** | Generate L2/L3 design docs for new work; query end-to-end flows; contribute changes via reviews | Query UI; PR reviews; design doc generation |
+| **Engineer** | Have an agent compose L2/L3 design docs for new work from aala's read surfaces; query end-to-end flows; contribute changes via reviews | Query UI; PR reviews; agent-composed design docs |
 | **Director / Exec** | Skim org-wide summaries; drive sweeping decisions; verify that decisions have been fully worked through their implications | Query UI; blast-radius PR oversight |
 | **Tenant Admin** | Configure source connectors; define taxonomies (domain / team / lifecycle trees); author and run domain-specific eval golden sets; review failed-query archive | Admin console |
 | **SaaS Builder** | Ship and evolve capabilities; maintain benchmark corpus; monitor aggregate telemetry; ship eval-as-a-feature for admins | Builder plane (CI, benchmarks, telemetry dashboards) |
@@ -79,7 +79,7 @@ What each persona gets, and how they interact.
 
 - **PM / Designer / Director**: stop asking engineers questions that should be queryable. Get audience-appropriate answers with provenance.
 - **EM**: get visibility into changes that affect your team without reading every PR end-to-end.
-- **Engineer**: stop hand-writing design docs that recapitulate state. Generate them, then focus the human effort on what's genuinely new.
+- **Engineer**: stop hand-writing design docs that recapitulate state. Have an agent compose them from aala's read surfaces, then focus the human effort on what's genuinely new.
 - **Admin**: own the org's knowledge taxonomy explicitly, rather than implicitly through scattered wiki conventions.
 - **Builder**: ship a platform whose quality is measurable and whose failure modes are visible cross-tenant.
 

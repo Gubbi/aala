@@ -1,6 +1,6 @@
 # LLM Gateway — Unified Model Access
 
-**Status: cross-cutting infrastructure.** Required by every deployment that runs language-model calls (i.e., every deployment with [Atoms](./03-atoms.md) extraction, [Projection](./04-projection.md) narrative, [Synthesis](./08-synthesis.md), [Hierarchical Navigation](./06-hierarchical-nav.md) label synthesis, [Blast Radius](./07-blast-radius.md) implicit pass, or [Quality](./10-quality.md) LLM-as-judge).
+**Status: cross-cutting infrastructure.** Required by every deployment that runs language-model calls (i.e., every deployment with [Atoms](./03-atoms.md) extraction / classification suggestion / predicate suggestion / conflict judging, [projection](./04-projection.md) narrative rendering inside a contentful container's projection facet, [Hierarchical Navigation](./06-hierarchical-nav.md) label synthesis, [Blast Radius](./07-blast-radius.md) implicit pass, or [Quality](./10-quality.md) LLM-as-judge).
 
 ## Concern
 
@@ -12,7 +12,7 @@ In one sentence: **LLM Gateway is the one place that knows how aala talks to a m
 
 | Role | Owns |
 |---|---|
-| **Implementer (aala)** | Picks the concrete gateway tool aala uses (LiteLLM, OpenRouter, Portkey, or a custom adapter). Defines the registered set of use-case keys (`aala.extraction`, `aala.conflict_judge`, `aala.projection_narrative`, …). Implements retries, fallback chains, observability emission. |
+| **Implementer (aala)** | Picks the concrete gateway tool aala uses (LiteLLM, OpenRouter, Portkey, or a custom adapter). Defines the registered set of use-case keys. Implements retries, fallback chains, observability emission. |
 | **Deployer (end-user)** | Configures the chosen gateway with their own models: which model serves each use-case key. Brings their own provider subscriptions / hosted endpoints / local model servers. |
 | **Caller (each aala container that issues LLM calls)** | Owns its prompt and its expected response schema. Passes both to the gateway; gateway passes them through. |
 
@@ -22,7 +22,7 @@ The deployer's surface is intentionally narrow: a configuration file mapping `aa
 
 | Concern | Notes |
 |---|---|
-| Use-case key registry | The named buckets aala calls: `aala.extraction`, `aala.conflict_judge`, `aala.projection_narrative`, `aala.label_synthesis`, `aala.blast_implicit`, `aala.synthesis`, `aala.faithfulness_judge`, `aala.relevance_filter`, `aala.embedding_default`, plus any deployment-extension keys. The registry is part of aala's published contract. |
+| Use-case key registry | The named buckets aala calls: `aala.extraction`, `aala.conflict_judge`, `aala.classification_suggest`, `aala.predicate_suggest`, `aala.projection_narrative`, `aala.label_synthesis`, `aala.blast_implicit`, `aala.faithfulness_judge`, `aala.relevance_filter`, `aala.embedding_default`, plus any deployment-extension keys. The registry is part of aala's published contract. |
 | Adapter to the chosen gateway tool | Thin layer that turns aala's `chat(use_case_key, messages, schema?)` into a request the configured gateway tool understands. One adapter per supported gateway tool. |
 | Retry / timeout policy | Per-use-case timeouts and retry budgets. Set by the implementer with sensible defaults; using the gateway tool's retry features where available. |
 | Fallback chain | When configured, "if top-tier model fails or times out for a use case, retry against a lower-tier model with a flag set on the response." |
@@ -36,7 +36,8 @@ LLM Gateway does **not** own schemas. Each caller passes its own; the gateway is
 - `chat_streaming(use_case_key, messages, schema?, options?) → stream<chunk>` — streaming variant.
 - `embed(use_case_key, text | texts[]) → vector | vectors[]` — embeddings; the use-case key selects the embedding model.
 - `usage(timeframe?, by?) → stats` — observability surface for ops.
-- `registered_use_cases() → [use_case_key, intent_description]` — what aala publishes so deployers know what they need to configure.
+- `routing() → routing_table` — current use-case → model mapping.
+- `registered_use_cases() → [use_case_info]` — what aala publishes so deployers know what they need to configure.
 
 Callers never name a model or provider directly — they name a use case.
 
@@ -51,9 +52,11 @@ Callers never name a model or provider directly — they name a use case.
 - **Gateway Adapter** — single concrete adapter for the gateway tool chosen by the implementer. Translates `chat(use_case_key, …)` into the tool's native API.
 - **Retry / Timeout Layer** — applies the per-use-case policy.
 - **Fallback Chain** — uses the gateway tool's tier mechanisms where present.
+- **Schema Validation Layer** — validates structured responses against caller-supplied schemas; retries with corrective prompts up to the configured budget.
 - **Observability Emitter** — structured call records.
+- **Cache Layer** — opt-in per-call caching keyed by `cache_key`.
 
-Full L3 detail lives in `docs/L3/09-llm-gateway.md` (TBD).
+Full L3 detail lives in [`docs/L3/09-llm-gateway.md`](../L3/09-llm-gateway.md).
 
 ## Variation points
 
@@ -63,7 +66,8 @@ Full L3 detail lives in `docs/L3/09-llm-gateway.md` (TBD).
 | Models per use case | Deployer | Configured in the gateway tool. The deployer brings their own subscriptions / endpoints / local model servers. |
 | Retry / fallback policy | Implementer (with sensible defaults; may expose knobs) | "extraction: top-tier, on fail retry once at mid-tier with confidence-flag." |
 | Observability sink | Deployer (where to send) / Implementer (what to emit) | Stdout / structured logs / metrics endpoint / [Quality](./10-quality.md) telemetry. |
-| Embedding model | Deployer (per-use-case) | Higher-dim for conflict-NN; smaller-dim for fast lookups; etc. |
+| Embedding model | Deployer (per-use-case) | Higher-dim for conflict-NN; smaller-dim for fast lookups. |
+| Caching | Deployer (TTL + backend) / Caller (opt-in per call) | None / in-process / persistent KV. |
 
 ## What LLM Gateway does NOT do
 
