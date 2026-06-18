@@ -3,9 +3,9 @@
   "private": true,
   "description": "LikeC4 workspace for L1/L2/L3 architecture diagrams.",
   "scripts": {
-    "export:L1": "likec4 export png -o ../docs/diagrams --flat --seq L1 && rm -f ../docs/diagrams/index.png",
-    "export:L2": "likec4 export png -o ../docs/diagrams --flat --seq L2 && rm -f ../docs/diagrams/index.png",
-    "export:L3": "likec4 export png -o ../docs/diagrams --flat --seq L3 && rm -f ../docs/diagrams/index.png",
+    "export:L1": "likec4 export png -o ../diagrams --flat --seq L1 && rm -f ../diagrams/index.png",
+    "export:L2": "likec4 export png -o ../diagrams --flat --seq L2 && rm -f ../diagrams/index.png",
+    "export:L3": "likec4 export png -o ../diagrams --flat --seq L3 && rm -f ../diagrams/index.png",
     "export": "npm run export:L1 && npm run export:L2 && npm run export:L3",
     "validate": "likec4 validate L1 && likec4 validate L2 && likec4 validate L3",
     "start:L1": "likec4 start L1",

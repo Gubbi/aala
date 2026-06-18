@@ -37,6 +37,6 @@ Each container exposes its own read API (state + diff) and, where applicable, it
 
 ## Diagram
 
-The L2 container diagram is generated from `likec4/L2/L2.c4`. To regenerate after changing the source: `cd likec4 && npm run export:L2`.
+The L2 container diagram is generated from `docs/likec4/L2/L2.c4`. To regenerate after changing the source: `cd docs/likec4 && npm run export:L2`.
 
 ![L2 Containers](../diagrams/containersView.png)

@@ -25,7 +25,7 @@ Projection is a cross-cutting read facet rather than a container; its component-
 Each chapter follows the same shape:
 
 1. **One-line summary** of the container's concern (cross-link to its L2 chapter for the full framing).
-2. **Component diagram** — rendered from `likec4/L3/L3.c4`.
+2. **Component diagram** — rendered from `docs/likec4/L3/L3.c4`.
 3. **Component reference** — one entry per component: responsibility, internal state (if any), the events it emits or consumes, the LLM Gateway use-case keys it invokes.
 4. **Internal flows** where useful — sequences across components inside the container (the cross-container sequences live in [`L2/11-flows.md`](../L2/11-flows.md)).
 5. **Variation points** at the component level — which components are pluggable and how.

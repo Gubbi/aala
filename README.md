@@ -15,7 +15,7 @@ This repository is a **specification** — a self-contained, implementation-inde
 | [`spec/`](./spec/) | **The normative specification** — data model, snapshots, delta streams, conflict classification, atom lifecycle, blast radius, error model, conformance, wire profiles, and the registry appendices. Start at [`spec/README.md`](./spec/README.md). |
 | [`interfaces/`](./interfaces/) | **The binding interface contracts** — one file per container (method signatures, per-method errors, idempotency, concurrency, event unions). Start at [`interfaces/README.md`](./interfaces/README.md). |
 | [`docs/analysis/`](./docs/analysis/) | Informative analyses — e.g. [ontology comparison](./docs/analysis/ontology-comparison.md) (vs OWL/RDFS/SKOS/LPGs) and the [external-agent integration pattern](./docs/analysis/agent-integration-pattern.md). |
-| [`docs/`](./docs/) | Supporting material and **design lineage** — the earlier C4 design (`L1`/`L2`/`L3`) and LikeC4 sources ([`likec4/`](./likec4/)) that seeded the spec. Lineage only; not normative, and may have drifted. |
+| [`docs/`](./docs/) | Supporting material and **design lineage** — the earlier C4 design (`L1`/`L2`/`L3`) and LikeC4 sources ([`docs/likec4/`](./docs/likec4/)) that seeded the spec. Lineage only; not normative, and may have drifted. |
 
 The specification is complete on its own: **`spec/` + `interfaces/` are everything an implementer needs.**
 

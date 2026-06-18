@@ -4,9 +4,9 @@ on:
   push:
     branches: [main]
     paths:
-      - 'likec4/**/*.c4'
-      - 'likec4/package.json'
-      - 'likec4/package-lock.json'
+      - 'docs/likec4/**/*.c4'
+      - 'docs/likec4/package.json'
+      - 'docs/likec4/package-lock.json'
       - '.github/workflows/likec4-diagrams.yml'
   workflow_dispatch:
 
@@ -23,29 +23,29 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
-          cache-dependency-path: likec4/package-lock.json
+          cache-dependency-path: docs/likec4/package-lock.json
 
       - name: Install dependencies
-        working-directory: likec4
+        working-directory: docs/likec4
         run: npm ci --include=optional
 
       # The package.json pins @rolldown/binding-darwin-arm64 for local macOS
       # dev. On Linux CI we need the matching x64 binding; npm's optional-dep
       # handling is unreliable across npm/node versions, so install explicitly.
       - name: Install Linux rolldown binding
-        working-directory: likec4
+        working-directory: docs/likec4
         run: npm install --no-save @rolldown/binding-linux-x64-gnu
 
       - name: Install Playwright Chromium
-        working-directory: likec4
+        working-directory: docs/likec4
         run: npx playwright install --with-deps chromium
 
       - name: Validate .c4 sources
-        working-directory: likec4
+        working-directory: docs/likec4
         run: npm run validate
 
       - name: Regenerate PNGs
-        working-directory: likec4
+        working-directory: docs/likec4
         run: npm run export
 
       - name: Commit refreshed diagrams
