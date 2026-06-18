@@ -3,6 +3,7 @@
 **A knowledge compiler — it turns the decisions scattered across your chat, docs, and reviews into a canonical, queryable system of record.**
 
 [![Diagrams](https://github.com/Gubbi/aala/actions/workflows/likec4-diagrams.yml/badge.svg)](https://github.com/Gubbi/aala/actions/workflows/likec4-diagrams.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
 > **Status:** `aala-v0.1` — a pre-publish draft specification, under active refinement. Expect breaking changes.
 
@@ -77,7 +78,7 @@ Issues and discussion are welcome — particularly on ambiguities, gaps, and con
 
 ## License
 
-Not yet specified.
+Released under the [MIT License](./LICENSE).
 
 ## Learn More
 
