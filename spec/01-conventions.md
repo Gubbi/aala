@@ -91,4 +91,4 @@ Two prohibitions follow:
 
 **Precedence.** Where any duplicated or derived text disagrees with the normative home, the home governs, and the disagreement is a defect in the other text.
 
-[`docs/analysis/`](../docs/analysis/) is informative — forward-facing analyses and comparisons. Nothing outside `spec/` and `interfaces/` carries normative weight.
+[`analysis/`](../analysis/) is informative — forward-facing analyses and comparisons. Nothing outside `spec/` and `interfaces/` carries normative weight.

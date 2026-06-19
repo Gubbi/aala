@@ -26,7 +26,7 @@ A contentful container exposes two complementary read surfaces:
 - **Structured read API** — precise graph queries (`traverse_relations`, `get_by_id`, `list_by_classification`, …). Exact, machine-shaped.
 - **Projection facet** — readable prose + a navigable index. LLM-shaped.
 
-These serve different consumers. An external agent answering a question grounds first on prose (LLMs reason better over prose than over raw record dumps), then drops to the structured API for precise follow-ups. See [`docs/analysis/agent-integration-pattern.md`](../analysis/agent-integration-pattern.md).
+These serve different consumers. An external agent answering a question grounds first on prose (LLMs reason better over prose than over raw record dumps), then drops to the structured API for precise follow-ups. See [`analysis/agent-integration-pattern.md`](../../analysis/agent-integration-pattern.md).
 
 ## The facet surface (conceptual)
 
@@ -80,6 +80,6 @@ The reference rendering pipeline a contentful container embeds: Section Scoper, 
 ## What Projection does NOT do
 
 - It is not a container and owns no canonical state — every projection is derived from a content owner's state.
-- It does not navigate content by query *intent* and compose answers — that is the external agent's job (see [`docs/analysis/agent-integration-pattern.md`](../analysis/agent-integration-pattern.md)).
+- It does not navigate content by query *intent* and compose answers — that is the external agent's job (see [`analysis/agent-integration-pattern.md`](../../analysis/agent-integration-pattern.md)).
 - It does not maintain a tree for axis-based human exploration — that's [Hierarchical Navigation](./06-hierarchical-nav.md).
 - It does not decide what is canonical — it only renders what the content owner says is canonical at the selected snapshot.

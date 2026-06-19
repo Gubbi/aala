@@ -1,6 +1,6 @@
 # Ontology / Knowledge-System Comparison
 
-**Scope:** how the Knowledge Compiler atom model — five concrete atom types (`entity`, `relation`, `classification`, `predicate`, `predicate_kind`) under one typed grammar — stands against OWL DL, RDFS, SKOS, and labeled property graphs. The normative model is in [`spec/03-data-model.md`](../../spec/03-data-model.md).
+**Scope:** how the Knowledge Compiler atom model — five concrete atom types (`entity`, `relation`, `classification`, `predicate`, `predicate_kind`) under one typed grammar — stands against OWL DL, RDFS, SKOS, and labeled property graphs. The normative model is in [`spec/03-data-model.md`](../spec/03-data-model.md).
 
 **Positioning:** classical-ontology rigor comparable to OWL on most structural features (classes, sub-class and sub-predicate hierarchies, property characteristics, equivalence, disjointness, qualified existential/cardinality restrictions, domain/range, fixed-tier entailment), plus first-class workflow features OWL/RDFS/SKOS/PG lack (per-claim provenance, operation-level correlation, lifecycle states, snapshot-isolated versioning, tree-bounded parallel discourses, a structured conflict pipeline). It intentionally omits the deep formal-logic features (universal restrictions, class algebra, full FOL) that serve formal-logic domains rather than contestable organizational knowledge.
 
@@ -20,7 +20,7 @@
 | Property characteristics — irreflexive | ✓ | ✗ | ✗ | ✗ | ✓ |
 | Property characteristics — reflexive | ✓ | ✗ | ✗ | ✗ | ✗ — deliberately omitted |
 | Inverse pairs (`inverse_of`) | ✓ | partial | ✗ | ✗ | ✓ — auto-materialized (T1) |
-| Equivalence | ✓ (single `equivalentClass`) | ✗ | exactMatch | ✗ | ✓✓ — three levels: `aliases` (names), `kind=equivalence` (atoms), `Duplicate` outcome (ingestion), with bright-line rules in [06](../../spec/06-conflict-classification.md) |
+| Equivalence | ✓ (single `equivalentClass`) | ✗ | exactMatch | ✗ | ✓✓ — three levels: `aliases` (names), `kind=equivalence` (atoms), `Duplicate` outcome (ingestion), with bright-line rules in [06](../spec/06-conflict-classification.md) |
 | Disjointness | ✓ | ✗ | ✗ | ✗ | ✓ — `disjoint_with` on ClassificationSchema (within-tree); propagation through `is_a` chains (T3) |
 | Qualified cardinality restrictions | ✓ (min/max/exact) | ✗ | ✗ | ✗ | ✓ — `min`/`max` per `(predicate, target_classification)` in `required_relations` / `optional_relations`; plus `max_children` on a classification |
 | Existential restrictions (∃P.C) | ✓ | ✗ | ✗ | ✗ | ✓ — `required_relations` with `min ≥ 1` to a `target_classification` (someValuesFrom-equivalent) |
@@ -60,7 +60,7 @@ These are deliberate omissions for the contestable-organizational-knowledge use 
 - **Snapshot isolation + authoring workflow.** Atoms-as-SoR with working→canonical publish (per-operation serialization, atomic commit) is the canonical change path, backend-neutral. OWL is silent on how changes are made or isolated.
 - **Tree-bounded ontologies.** Parallel discourses with same-claim collapse inside and `kind=equivalence` across. OWL has no equivalent of "these two ontologies describe the same world from different angles — don't auto-merge."
 - **Primary + secondary classification distinction.** Single `is_a` (rdf:type-like) plus multi-classification via `kind=specialization` (rdfs:subClassOf-like). OWL's `subClassOf` is uniformly multi-valued — communities re-invent the "primary class" distinction by convention.
-- **Structured conflict outcome family.** A pipeline of named outcomes with documented resolution paths and three resolution modes (auto-resolve / soft-prompt / hard-block) — see [06](../../spec/06-conflict-classification.md). OWL's reasoner returns "inconsistent" — one bit; ours returns actionable categories.
+- **Structured conflict outcome family.** A pipeline of named outcomes with documented resolution paths and three resolution modes (auto-resolve / soft-prompt / hard-block) — see [06](../spec/06-conflict-classification.md). OWL's reasoner returns "inconsistent" — one bit; ours returns actionable categories.
 - **Identity + Conflict test.** A formal principle for deciding when to atomize a value vs. keep it as an attribute. OWL's datatype-vs-object-property choice is a typing decision, not a methodology.
 - **Derived atoms as first-class citizens.** Entailed atoms are part of the model with `derivation` provenance, distinguishable from asserted ones. OWL inferred axioms exist only as reasoner output.
 

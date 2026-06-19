@@ -123,7 +123,7 @@ aala.stats(scope?) → stats_summary
 
 The agent calls these. The agent decides what to show the user when — pagination, drill-downs, summaries.
 
-Q&A and document generation (ADRs, pitches, comparisons, walkthroughs) are NOT aala tools. The **local agent itself** answers questions and composes documents by consuming aala's read surfaces — Atoms' structured reads (graph queries by scope / classification / relation) plus the projection facet (`read_index` to navigate, `read` to fetch canonical prose with provenance) — and composing the answer with its own LLM. See [`docs/analysis/agent-integration-pattern.md`](../../analysis/agent-integration-pattern.md).
+Q&A and document generation (ADRs, pitches, comparisons, walkthroughs) are NOT aala tools. The **local agent itself** answers questions and composes documents by consuming aala's read surfaces — Atoms' structured reads (graph queries by scope / classification / relation) plus the projection facet (`read_index` to navigate, `read` to fetch canonical prose with provenance) — and composing the answer with its own LLM. See [`analysis/agent-integration-pattern.md`](../../../analysis/agent-integration-pattern.md).
 
 ## Deviations from the spec (and where we lean on optional contracts)
 

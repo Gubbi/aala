@@ -37,6 +37,6 @@ Start with [`00-introduction.md`](./00-introduction.md) → [`01-conventions.md`
 ## Relationship to the interfaces
 
 - [`interfaces/`](../interfaces/) — normative. Each container's method signatures, error declarations, idempotency, and concurrency rules are binding.
-- [`docs/analysis/`](../docs/analysis/) — informative; forward-facing analyses.
+- [`analysis/`](../analysis/) — informative; forward-facing analyses.
 
 The spec and the interface files together are the complete, self-contained contract. The spec adds the cross-cutting invariants and rules the interfaces leave implicit — atom data model, classification semantics, lifecycle, ordering, conformance levels, error retry, versioning, edge cases, wire profiles. Ownership and precedence between the two are defined in [01 — Conventions § Normative ownership](./01-conventions.md#normative-ownership); the container partition is defined in [02 — Conformance](./02-conformance.md).

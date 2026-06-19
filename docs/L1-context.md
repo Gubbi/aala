@@ -38,7 +38,7 @@ The Knowledge Compiler treats these fragments as evidence, extracts the underlyi
 | **Detect** | Contradictions, supersession, refinement, reinforcement, scope mismatches |
 | **Analyze** | Blast radius of sweeping decisions across the dependency graph |
 | **Maintain** | Versioned canonical claim store with full audit trail |
-| **Expose** | Read surfaces over the store: a structured graph-query API and a projection facet (canonical claim prose + navigable index). External agents consume these to answer questions and compose documents (C4 design docs, ADRs, flow walkthroughs, ad-hoc Q&A, comparisons) — aala does not generate those itself. See [`docs/analysis/agent-integration-pattern.md`](analysis/agent-integration-pattern.md). |
+| **Expose** | Read surfaces over the store: a structured graph-query API and a projection facet (canonical claim prose + navigable index). External agents consume these to answer questions and compose documents (C4 design docs, ADRs, flow walkthroughs, ad-hoc Q&A, comparisons) — aala does not generate those itself. See [`analysis/agent-integration-pattern.md`](../analysis/agent-integration-pattern.md). |
 | **Review** | Via git PRs with bot-assisted change summaries and conflict annotations |
 | **Evaluate** | Built-in eval surfaces for tenants; aggregate telemetry for the builder |
 | **Supersede existing doc stores** | The canonical claim store + its projection facet (canonical claim prose) replace Confluence / Notion / Drive for the planning-state material this system covers. |

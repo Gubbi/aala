@@ -8,7 +8,7 @@ Atoms is the System of Record. It owns the canonical typed grammar for claims, t
 
 In one sentence: **Atoms knows what an atom is, what it's classified under, how it relates to other atoms, how it was born, how it changes, and what consequences entail from it.**
 
-Atoms also implements the [Projection facet](./04-projection.md) (required) over its own content — exposing canonical claim prose and the glossary, plus a navigable index — as a second read surface alongside the structured read API below. External agents compose answers and documents from these surfaces; see [`docs/analysis/agent-integration-pattern.md`](../analysis/agent-integration-pattern.md).
+Atoms also implements the [Projection facet](./04-projection.md) (required) over its own content — exposing canonical claim prose and the glossary, plus a navigable index — as a second read surface alongside the structured read API below. External agents compose answers and documents from these surfaces; see [`analysis/agent-integration-pattern.md`](../../analysis/agent-integration-pattern.md).
 
 ## The typed grammar
 

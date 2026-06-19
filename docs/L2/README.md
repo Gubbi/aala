@@ -26,7 +26,7 @@ The container list below is a consequence of applying the principles in [`01-pri
 
 Each container exposes its own read API (state + diff) and, where applicable, its own write API. There is no shared storage container, and no shared rendering container — every container owns its corner of state and renders its own content through the Projection facet.
 
-**Generation and Q&A are not aala concerns.** aala provides a grounded, readable, navigable substrate; external agents compose answers and documents (ADRs, pitches, diagrams, walkthroughs) on top of aala's read surfaces. See [`docs/analysis/agent-integration-pattern.md`](../analysis/agent-integration-pattern.md).
+**Generation and Q&A are not aala concerns.** aala provides a grounded, readable, navigable substrate; external agents compose answers and documents (ADRs, pitches, diagrams, walkthroughs) on top of aala's read surfaces. See [`analysis/agent-integration-pattern.md`](../../analysis/agent-integration-pattern.md).
 
 ## Other chapters
 

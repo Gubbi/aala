@@ -7,5 +7,5 @@ node_modules/
 
 # Internal working artifacts (kept local, not published)
 docs/review-results/
-docs/analysis/spec-remediation-plan.md
+analysis/spec-remediation-plan.md
 TODO.local.md

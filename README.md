@@ -69,7 +69,7 @@ No one hand-edited a wiki. The decision, its contradiction, its downstream impac
 |---|---|
 | [`spec/`](./spec/) | The normative specification — data model, snapshots, delta streams, conflict classification, atom lifecycle, blast radius, error model, conformance, wire profiles, and the registry appendices. |
 | [`interfaces/`](./interfaces/) | The binding interface contracts — one file per container (signatures, errors, idempotency, concurrency, events). |
-| [`docs/analysis/`](./docs/analysis/) | Informative analyses — e.g. the [ontology comparison](./docs/analysis/ontology-comparison.md) (vs OWL/RDFS/SKOS/LPGs) and the [external-agent integration pattern](./docs/analysis/agent-integration-pattern.md). |
+| [`analysis/`](./analysis/) | Informative analyses — e.g. the [ontology comparison](./analysis/ontology-comparison.md) (vs OWL/RDFS/SKOS/LPGs) and the [external-agent integration pattern](./analysis/agent-integration-pattern.md). |
 | [`docs/`](./docs/) | Supporting material and design lineage — the earlier C4 design (`L1`/`L2`/`L3`) and the LikeC4 sources ([`docs/likec4/`](./docs/likec4/)) that seeded the spec. Lineage only; not normative. |
 
 **Start here:** [`spec/00-introduction.md`](./spec/00-introduction.md) (scope) → [`spec/03-data-model.md`](./spec/03-data-model.md) (atoms, classifications, the ten predicate kinds) → [`spec/02-conformance.md`](./spec/02-conformance.md) (what "conformant" means) → [`interfaces/`](./interfaces/) (the contracts). The closed registries live in one place: [Appendix A](./spec/appendix-a-registries.md); the default projection format is [Appendix B — OKF](./spec/appendix-b-okf-profile.md).
@@ -90,5 +90,5 @@ Released under the [MIT License](./LICENSE).
 
 - [Specification index](./spec/README.md)
 - [Interface contracts index](./interfaces/README.md)
-- [How external agents consume aala](./docs/analysis/agent-integration-pattern.md)
-- [aala vs. OWL / RDFS / SKOS / property graphs](./docs/analysis/ontology-comparison.md)
+- [How external agents consume aala](./analysis/agent-integration-pattern.md)
+- [aala vs. OWL / RDFS / SKOS / property graphs](./analysis/ontology-comparison.md)

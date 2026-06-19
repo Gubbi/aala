@@ -67,7 +67,7 @@ sequenceDiagram
 
 ## Read path — external agent composes over aala's read surfaces
 
-Answering questions and generating documents are **not** aala concerns. An external agent reads aala's surfaces through Orchestration and composes the answer itself: it navigates the [projection facet](./04-projection.md) index and fetches prose to ground its understanding, then issues structured [Atoms](./03-atoms.md) reads for precision and provenance. See [`docs/analysis/agent-integration-pattern.md`](../analysis/agent-integration-pattern.md) for the recommended pattern.
+Answering questions and generating documents are **not** aala concerns. An external agent reads aala's surfaces through Orchestration and composes the answer itself: it navigates the [projection facet](./04-projection.md) index and fetches prose to ground its understanding, then issues structured [Atoms](./03-atoms.md) reads for precision and provenance. See [`analysis/agent-integration-pattern.md`](../../analysis/agent-integration-pattern.md) for the recommended pattern.
 
 ```mermaid
 sequenceDiagram

@@ -63,7 +63,7 @@ Orchestration owns the tree registry and exposes lifecycle operations: register 
 
 **Request entry points:**
 - `ingest(normalized_fragment, options?) → ingest_summary` — accepts a fragment; runs Ingestion, then Atoms.propose, then the affected hosts re-derive their projection facet and Blast Radius runs if wired and triggered; returns identifier + summary. `options.target_tree` overrides default tree assignment.
-- `read(...)` — dispatches reads to the appropriate container: structured Atoms reads (`get_by_id`, `traverse_relations`, `list_by_classification`, …) and projection-facet reads (`list`, `read`, `read_index`, `changes_since`) over a host's own content. External agents compose answers over these read surfaces themselves (see [`docs/analysis/agent-integration-pattern.md`](../analysis/agent-integration-pattern.md)).
+- `read(...)` — dispatches reads to the appropriate container: structured Atoms reads (`get_by_id`, `traverse_relations`, `list_by_classification`, …) and projection-facet reads (`list`, `read`, `read_index`, `changes_since`) over a host's own content. External agents compose answers over these read surfaces themselves (see [`analysis/agent-integration-pattern.md`](../../analysis/agent-integration-pattern.md)).
 - `record_resolution(blast_id, atom_id, resolution, rationale, meta?) → blast_report` — forward reviewer resolution into Blast Radius.
 
 **Capability discovery:**
@@ -104,5 +104,5 @@ Full L3 detail lives in [`docs/L3/05-orchestration.md`](../L3/05-orchestration.m
 - It does not extract atoms — that's [Atoms](./03-atoms.md).
 - It does not classify conflicts — that's [Atoms](./03-atoms.md).
 - It does not render prose — that's the [projection facet](./04-projection.md) on each contentful container.
-- It does not synthesize answers or generate documents — external agents compose over aala's read surfaces themselves (see [`docs/analysis/agent-integration-pattern.md`](../analysis/agent-integration-pattern.md)).
+- It does not synthesize answers or generate documents — external agents compose over aala's read surfaces themselves (see [`analysis/agent-integration-pattern.md`](../../analysis/agent-integration-pattern.md)).
 - It does not decide *what* canonical truth is — it decides *which snapshot is current* and *when promotion happens*; the content is owned by the capability containers.

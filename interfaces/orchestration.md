@@ -233,7 +233,7 @@ The dispatched read surface is every capability-container method whose **Access*
 - **Quality measurement reads** — `metrics`, `feedback_archive`, `list_golden_sets`, `golden_set_results`, `benchmark_results`, `shadow_eval_status`, and the `verify_faithfulness` judgment service ([`quality.md`](./quality.md))
 - **Delta-Stream reads** — `changes_since` / `as_stream` on every container ([`00-shared-types.md § Delta-Stream events`](./00-shared-types.md#delta-stream-events))
 
-External agents work directly against this surface — navigating the projection index and fetching prose to ground, then issuing structured Atoms reads for precision — and compose answers and documents themselves. Q&A and document generation are not aala concerns; see [`docs/analysis/agent-integration-pattern.md`](../docs/analysis/agent-integration-pattern.md) (informative).
+External agents work directly against this surface — navigating the projection index and fetching prose to ground, then issuing structured Atoms reads for precision — and compose answers and documents themselves. Q&A and document generation are not aala concerns; see [`analysis/agent-integration-pattern.md`](../analysis/agent-integration-pattern.md) (informative).
 
 `query` as an `OperationKind` names this surface in the Tier-1 vocabulary ([Appendix A § Operations (Tier 1)](../spec/appendix-a-registries.md#operations-tier-1)): it is the **Access** class every read method declares, and the operation frame an embedding product applies when it presents a failed read in its own vocabulary. Inside the contract, no method frames it — per the rule in the preamble, a dispatched read surfaces the addressed method's Activity Error directly.
 
